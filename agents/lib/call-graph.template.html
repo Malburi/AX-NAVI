@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{PROJECT_NAME}} Call Graph</title>
+  <style>{{VIS_NETWORK_CSS}}</style>
+  <script>{{VIS_NETWORK_JS}}</script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    .header { background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 12px 20px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+    .header h1 { font-size: 18px; font-weight: 700; color: #fff; }
+    .header .subtitle { font-size: 11px; color: #888; margin-top: 2px; }
+    .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    #searchInput { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; padding: 6px 12px; color: #fff; font-size: 13px; width: 200px; outline: none; }
+    #searchInput::placeholder { color: #666; }
+    #searchInput:focus { border-color: #4A90D9; }
+    .filter-bar { background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.07); padding: 8px 20px; display: flex; gap: 8px; align-items: center; flex-shrink: 0; flex-wrap: wrap; }
+    .filter-bar span.label { font-size: 11px; color: #888; margin-right: 4px; }
+    .filter-spacer { flex: 1; }
+    .filter-btn { padding: 4px 12px; border-radius: 20px; border: 1px solid; font-size: 11px; cursor: pointer; transition: all .2s; font-weight: 600; background: transparent; }
+    .filter-btn.active { opacity: 1; }
+    .filter-btn:not(.active) { opacity: 0.35; }
+    .filter-btn[data-type="all"]      { border-color: #aaa;     color: #aaa; }
+    .filter-btn[data-type="view"],
+    .filter-btn[data-type="vue_view"]      { border-color: #E74C3C;  color: #E74C3C; }
+    .filter-btn[data-type="endpoint"]      { border-color: #4A90D9;  color: #4A90D9; }
+    .filter-btn[data-type="function"]      { border-color: #9B59B6;  color: #9B59B6; }
+    .filter-btn[data-type="dao"]           { border-color: #2E86C1;  color: #2E86C1; }
+    .filter-btn[data-type="external"],
+    .filter-btn[data-type="sap_interface"] { border-color: #F5A623;  color: #F5A623; }
+    .filter-btn[data-type="db_table"],
+    .filter-btn[data-type="mssql_table"]   { border-color: #7ED321;  color: #7ED321; }
+    .filter-btn[data-type="util"]          { border-color: #48C9B0;  color: #48C9B0; }
+    .tool-btn { padding: 4px 12px; border-radius: 20px; border: 1px solid #4A90D9; color: #4A90D9; font-size: 11px; cursor: pointer; font-weight: 600; background: transparent; }
+    .tool-btn.active { background: rgba(74,144,217,0.18); }
+    .main { display: flex; flex: 1; overflow: hidden; }
+    #graph { flex: 1; background: #0f0f1e; }
+    #detail { width: 280px; background: rgba(255,255,255,0.04); border-left: 1px solid rgba(255,255,255,0.08); padding: 16px; overflow-y: auto; flex-shrink: 0; }
+    #detail h3 { font-size: 13px; color: #aaa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+    #detail .empty { color: #555; font-size: 13px; line-height: 1.6; }
+    .detail-card { background: rgba(255,255,255,0.06); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .detail-card .label { font-size: 10px; color: #888; text-transform: uppercase; margin-bottom: 4px; }
+    .detail-card .value { font-size: 13px; color: #e0e0e0; word-break: break-all; }
+    .detail-card .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 700; margin-top: 6px; }
+    .conn-list { list-style: none; }
+    .conn-list li { font-size: 12px; color: #ccc; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .conn-list li:last-child { border-bottom: none; }
+    .conn-arrow { color: #4A90D9; margin-right: 4px; }
+    .conn-note { font-size: 11px; color: #888; font-style: italic; margin: 2px 0 0 0; }
+    .stat-hero { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 14px; text-align: center; margin-bottom: 16px; }
+    .stat-num { font-size: 32px; font-weight: 800; color: #4A90D9; line-height: 1.2; }
+    .stat-caption { font-size: 12px; color: #ccc; margin-top: 4px; }
+    .stat-sub { font-size: 11px; color: #888; margin-top: 4px; }
+    .legend-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4px 10px; margin-bottom: 4px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .legend-note { grid-column: 1 / -1; font-size: 11px; color: #888; margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h1>🗺️ {{PROJECT_NAME}} Call Graph</h1>
+      <div class="subtitle">정적 분석 기반 · 런타임 동적 호출 미포함 · {{STACK_DESCRIPTION}}</div>
+    </div>
+    <div class="header-right">
+      <input id="searchInput" type="text" placeholder="노드 검색..." />
+    </div>
+  </div>
+
+  <div class="filter-bar">
+    <span class="label">필터:</span>
+    <button class="filter-btn active" data-type="all">전체</button>
+    {{FILTER_BUTTONS}}
+    <div class="filter-spacer"></div>
+    <button id="findBtn" class="tool-btn">찾기</button>
+    <button id="resetHighlightBtn" class="tool-btn">강조 초기화</button>
+    <button id="physicsToggle" class="tool-btn">물리엔진</button>
+  </div>
+
+  <div class="main">
+    <div id="graph"></div>
+    <div id="detail">
+      <h3>그래프 정보</h3>
+      {{STAT_SUMMARY}}
+      <h3>범례</h3>
+      <div class="legend-grid">
+        {{LEGEND_ITEMS}}
+      </div>
+      <hr style="border-color:rgba(255,255,255,0.08);margin:16px 0;" />
+      <h3>선택 노드</h3>
+      <div id="detailContent" class="empty">노드를 클릭하세요.</div>
+    </div>
+  </div>
+
+  <script>
+    const COLORS = {{COLORS}};
+    const nodeTypeMap = {};
+
+    function nodeColor(type) {
+      const c = COLORS[type] || { bg: '#1e293b', border: '#334155' };
+      return { background: c.bg, border: c.border, highlight: { background: c.border, border: '#fff' } };
+    }
+
+    function nodeShape(type) {
+      const shapes = {
+        view: 'ellipse', vue_view: 'ellipse',
+        endpoint: 'box',
+        function: 'hexagon', dao: 'hexagon',
+        external: 'diamond', sap_interface: 'diamond',
+        db_table: 'database', mssql_table: 'database',
+        util: 'dot'
+      };
+      return shapes[type] || 'dot';
+    }
+
+    function mkNode(id, label, type, extra = {}) {
+      const c = COLORS[type] || { bg: '#1e293b', border: '#334155', font: '#e0e0e0' };
+      nodeTypeMap[id] = type;
+      return {
+        id, label,
+        color: nodeColor(type),
+        font: { color: c.font || '#e0e0e0', size: 12 },
+        shape: nodeShape(type),
+        borderWidth: 2,
+        shadow: true,
+        ...extra
+      };
+    }
+
+    const nodesData = {{NODES_DATA}};
+    const baseOpacity = {};
+    nodesData.forEach(n => { baseOpacity[n.id] = n.opacity ?? 1; });
+
+    function edge(from, to, label = '', dashed = false, edgeType = 'call', note = '') {
+      const isReflect = edgeType === 'reflect';
+      return {
+        from, to, label, edgeType, note, arrows: 'to', dashes: dashed,
+        color: { color: isReflect ? 'rgba(245,166,35,0.55)' : 'rgba(150,150,200,0.4)', highlight: isReflect ? '#F5A623' : '#4A90D9' },
+        font: { size: 9, color: '#999', align: 'middle' },
+        smooth: { type: 'curvedCW', roundness: 0.1 }
+      };
+    }
+
+    const EDGE_TYPE_LABEL = {
+      call: '호출', inject: 'DI 주입', inherit: '상속/구현',
+      reflect: '리플렉션(추정)', depends: '의존', query: 'DB 쿼리'
+    };
+
+    const edgesData = {{EDGES_DATA}};
+    const META = {{META}};
+
+    const container = document.getElementById('graph');
+    const nodes = new vis.DataSet(nodesData);
+    const edges_ds = new vis.DataSet(edgesData);
+    // 노드·엣지가 많으면(임계값은 wiki_generator.py에서 결정) 기본 물리엔진 OFF + 동적 엣지
+    // 스무딩(가장 비싼 렌더 옵션) OFF — 대형 그래프에서 로딩이 급격히 느려지는 걸 막는다.
+    // 물리엔진은 토글 버튼으로 언제든 켤 수 있고, 켰다가 안정화가 끝나면 자동으로 다시 꺼서
+    // (stabilizationIterationsDone) 드래그·줌 중 불필요한 시뮬레이션 재계산을 막는다.
+    let physicsOn = {{PHYSICS_DEFAULT}};
+    const network = new vis.Network(container, { nodes, edges: edges_ds }, {
+      physics: {
+        enabled: physicsOn, solver: 'forceAtlas2Based',
+        forceAtlas2Based: { gravitationalConstant: -60, centralGravity: 0.005, springLength: 120, springConstant: 0.04, damping: 0.4 },
+        stabilization: { iterations: 250 }
+      },
+      interaction: { hover: true, tooltipDelay: 200, navigationButtons: false, keyboard: false, hideEdgesOnDrag: true, hideEdgesOnZoom: true },
+      edges: { width: 1.2, smooth: {{EDGE_SMOOTH_DYNAMIC}} ? { type: 'dynamic' } : false },
+      nodes: { borderWidth: 2, shadow: true },
+      layout: { improvedLayout: true }
+    });
+
+    function syncPhysicsBtn() {
+      const btn = document.getElementById('physicsToggle');
+      btn.textContent = '물리엔진 ' + (physicsOn ? 'ON' : 'OFF');
+      btn.classList.toggle('active', physicsOn);
+    }
+    syncPhysicsBtn();
+
+    network.on('stabilizationIterationsDone', () => {
+      if (!physicsOn) return;
+      network.setOptions({ physics: { enabled: false } });
+      physicsOn = false;
+      syncPhysicsBtn();
+    });
+
+    function getLabel(id) {
+      const n = nodesData.find(x => x.id === id);
+      return n ? n.label.replace(/\n/g, ' ') : id;
+    }
+
+    function edgeTag(e) {
+      const t = e.edgeType || 'call';
+      const unsure = t === 'reflect' ? ' style="opacity:.6;font-style:italic"' : '';
+      return `<span${unsure}>[${EDGE_TYPE_LABEL[t] || t}]</span> `;
+    }
+
+    function showDetail(id) {
+      const dc = document.getElementById('detailContent');
+      const m = META[id] || {};
+      const lbl = getLabel(id);
+      const type = nodeTypeMap[id];
+      const c = COLORS[type];
+      const typeColor = c ? c.border : '#aaa';
+      const connEdges = edgesData.filter(e => e.from === id || e.to === id);
+      const edgeNote = e => e.note ? `<div class="conn-note">${e.note}</div>` : '';
+      const outgoing = connEdges.filter(e => e.from === id).map(e => `<li>${edgeTag(e)}<span class="conn-arrow">→</span>${getLabel(e.to)}${edgeNote(e)}</li>`).join('');
+      const incoming = connEdges.filter(e => e.to === id).map(e => `<li>${edgeTag(e)}<span class="conn-arrow">←</span>${getLabel(e.from)}${edgeNote(e)}</li>`).join('');
+
+      const badges = [];
+      if (m.type) badges.push(`<span class="badge" style="background:${typeColor}22;color:${typeColor};border:1px solid ${typeColor}">${m.type}</span>`);
+      if (m.visibility) badges.push(`<span class="badge" style="background:#33333322;color:#ccc;border:1px solid #555">${m.visibility}</span>`);
+      if (m.static) badges.push(`<span class="badge" style="background:#33333322;color:#ccc;border:1px solid #555">static</span>`);
+      if (m.hub) badges.push(`<span class="badge" style="background:#4A90D922;color:#4A90D9;border:1px solid #4A90D9">◎ 허브 (in ${m.inDegree})</span>`);
+      if (m.dead) badges.push(`<span class="badge" style="background:#ff555522;color:#ff5555;border:1px solid #ff5555">☠ 데드 코드 후보</span>`);
+      if (m.extends) badges.push(`<span class="badge" style="background:#9B59B622;color:#9B59B6;border:1px solid #9B59B6">extends ${m.extends}</span>`);
+      (m.implements || []).forEach(i => badges.push(`<span class="badge" style="background:#9B59B622;color:#9B59B6;border:1px solid #9B59B6">implements ${i}</span>`));
+
+      dc.classList.remove('empty');
+      dc.innerHTML = `
+        <div class="detail-card">
+          <div class="label">노드</div>
+          <div class="value">${lbl}</div>
+          <div style="margin-top:6px">${badges.join(' ')}</div>
+        </div>
+        ${m.file ? `<div class="detail-card"><div class="label">파일</div><div class="value" style="font-family:monospace;font-size:11px">${m.file}${m.line ? ':' + m.line : ''}</div></div>` : ''}
+        ${m.signature ? `<div class="detail-card"><div class="label">시그니처</div><div class="value" style="font-family:monospace;font-size:11px;white-space:pre-wrap">${m.signature}</div></div>` : ''}
+        ${m.annotations && m.annotations.length ? `<div class="detail-card"><div class="label">애노테이션</div><div class="value" style="font-family:monospace;font-size:11px">${m.annotations.join(' ')}</div></div>` : ''}
+        ${m.api  ? `<div class="detail-card"><div class="label">API</div><div class="value" style="font-size:11px">${m.api}</div></div>` : ''}
+        ${m.note ? `<div class="detail-card"><div class="label">설명</div><div class="value" style="font-size:11px;white-space:pre-wrap">${m.note}</div></div>` : ''}
+        ${m.dead && m.deadReason ? `<div class="detail-card"><div class="label">데드 코드 사유</div><div class="value" style="font-size:11px">${m.deadReason} (정적 분석 기준, 리플렉션 등 동적 호출 미탐지 — 삭제 전 확인 필요)</div></div>` : ''}
+        ${m.methods && m.methods.length ? `<div class="detail-card"><div class="label">메서드 (${m.methods.length})</div><div class="value" style="font-size:11px">${m.methods.join(', ')}</div></div>` : ''}
+        <div class="detail-card"><div class="label">연결 수</div><div class="value" style="font-size:12px">← 호출처 ${m.inDegree ?? connEdges.filter(e => e.to === id).length}개 · 호출 대상 → ${m.outDegree ?? connEdges.filter(e => e.from === id).length}개</div></div>
+        ${outgoing ? `<div class="detail-card"><div class="label">호출 대상 (→ ${connEdges.filter(e => e.from === id).length}개)</div><ul class="conn-list">${outgoing}</ul></div>` : ''}
+        ${incoming ? `<div class="detail-card"><div class="label">호출처 (← ${connEdges.filter(e => e.to === id).length}개)</div><ul class="conn-list">${incoming}</ul></div>` : ''}
+      `;
+      network.selectNodes([id]);
+    }
+
+    network.on('click', params => {
+      if (!params.nodes.length) {
+        const dc = document.getElementById('detailContent');
+        dc.classList.add('empty');
+        dc.innerHTML = '노드를 클릭하세요.';
+        return;
+      }
+      showDetail(params.nodes[0]);
+    });
+
+    function resetHighlight() {
+      nodes.update(nodesData.map(n => ({ id: n.id, opacity: baseOpacity[n.id] })));
+    }
+
+    network.on('doubleClick', params => {
+      if (!params.nodes.length) { resetHighlight(); return; }
+      const id = params.nodes[0];
+      const keep = new Set([id, ...network.getConnectedNodes(id)]);
+      nodes.update(nodesData.map(n => ({ id: n.id, opacity: keep.has(n.id) ? baseOpacity[n.id] : 0.15 })));
+    });
+
+    document.getElementById('resetHighlightBtn').addEventListener('click', resetHighlight);
+
+    document.getElementById('physicsToggle').addEventListener('click', function() {
+      physicsOn = !physicsOn;
+      syncPhysicsBtn();
+      network.setOptions({ physics: { enabled: physicsOn } });
+    });
+
+    document.getElementById('findBtn').addEventListener('click', () => {
+      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      if (!q) return;
+      const hit = nodesData.find(n => {
+        const m = META[n.id] || {};
+        return n.id.toLowerCase().includes(q) || n.label.toLowerCase().includes(q) || (m.file || '').toLowerCase().includes(q);
+      });
+      if (hit) {
+        network.focus(hit.id, { scale: 1.35, animation: true });
+        showDetail(hit.id);
+      }
+    });
+
+    document.getElementById('searchInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('findBtn').click();
+    });
+
+    const allTypes = [...new Set(nodesData.map(n => nodeTypeMap[n.id]))];
+    const activeTypes = new Set(allTypes);
+
+    document.querySelectorAll('.filter-btn[data-type]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const type = btn.dataset.type;
+        if (type === 'all') {
+          const allOn = activeTypes.size === allTypes.length;
+          activeTypes.clear();
+          if (!allOn) allTypes.forEach(t => activeTypes.add(t));
+          document.querySelectorAll('.filter-btn:not([data-type="all"])').forEach(b => b.classList.toggle('active', activeTypes.has(b.dataset.type)));
+        } else {
+          if (activeTypes.has(type)) activeTypes.delete(type); else activeTypes.add(type);
+          btn.classList.toggle('active', activeTypes.has(type));
+        }
+        nodesData.forEach(n => {
+          const t = nodeTypeMap[n.id];
+          nodes.update({ id: n.id, hidden: !activeTypes.has(t), color: nodeColor(t) });
+        });
+      });
+    });
+
+    document.getElementById('searchInput').addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      nodesData.forEach(n => {
+        const type = nodeTypeMap[n.id];
+        if (!q) { nodes.update({ id: n.id, color: nodeColor(type) }); return; }
+        const match = n.label.toLowerCase().includes(q);
+        const c = COLORS[type] || { bg: '#1e293b', border: '#334155' };
+        nodes.update({
+          id: n.id,
+          color: match
+            ? { background: c.border, border: '#fff', highlight: { background: '#fff', border: c.border } }
+            : { background: '#333', border: '#555' }
+        });
+      });
+    });
+  </script>
+</body>
+</html>

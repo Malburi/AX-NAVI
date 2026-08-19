@@ -1,0 +1,26 @@
+name: Plugin validation
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Claude Code validator
+        run: npm install -g @anthropic-ai/claude-code@latest
+      - name: Validate plugin and marketplace
+        run: claude plugin validate . --strict
+      - name: Run contract tests
+        run: node agents/lib/tests/run.js
+      - name: Check Python syntax
+        run: python3 -m compileall -q agents/lib

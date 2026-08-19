@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ui_flow.json",
+  "type": "object",
+  "required": ["_meta", "screens", "events", "datasets", "transactions"],
+  "properties": {
+    "_meta": { "$ref": "_meta.schema.json" },
+    "screens": { "type": "array", "items": { "type": "object", "required": ["id", "file", "workspace"], "properties": { "id": { "type": "string" }, "file": { "type": "string" }, "workspace": { "type": "string" } } } },
+    "events": { "type": "array", "items": { "type": "object", "required": ["component", "event", "handler", "file", "line"], "properties": { "component": { "type": "string" }, "event": { "type": "string" }, "handler": { "type": "string" }, "file": { "type": "string" }, "line": { "type": "integer" } } } },
+    "datasets": { "type": "array", "items": { "type": "object", "required": ["id", "columns", "file"], "properties": { "id": { "type": "string" }, "columns": { "type": "array", "items": { "type": "object", "required": ["name", "type"] } }, "file": { "type": "string" } } } },
+    "transactions": { "type": "array", "items": { "type": "object", "required": ["service_id", "url", "path_pattern", "callback", "file", "line"], "properties": { "service_id": { "type": "string" }, "url": { "type": "string" }, "path_pattern": { "type": "string" }, "callback": { "type": "string" }, "file": { "type": "string" }, "line": { "type": "integer" } } } }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "data_flow.json",
+  "type": "object",
+  "required": ["_meta", "chains"],
+  "properties": {
+    "_meta": { "$ref": "_meta.schema.json" },
+    "chains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "endpoint_id", "method_chain", "sql_ids", "tables_read", "tables_written"],
+        "properties": {
+          "id": { "type": "string" },
+          "endpoint_id": { "type": "string" },
+          "method_chain": { "type": "array", "items": { "type": "string" } },
+          "sql_ids": { "type": "array", "items": { "type": "string" } },
+          "tables_read": { "type": "array", "items": { "type": "string" } },
+          "tables_written": { "type": "array", "items": { "type": "string" } },
+          "confidence": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+          "note": { "type": "string" }
+        }
+      }
+    }
+  }
+}

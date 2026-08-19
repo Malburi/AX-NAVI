@@ -1,0 +1,408 @@
+<title>스킬 트리거 체계 상세</title>
+<style>
+  :root {
+    --ink: #1f2a30;
+    --ink-soft: #4b5a61;
+    --paper: #fbfaf7;
+    --panel: #f2f0ea;
+    --line: #dcd8ce;
+    --accent: #1f5f6b;
+    --accent-soft: #e3edee;
+    --warn-bg: #fdf3e0;
+    --warn-line: #d9a441;
+    --warn-ink: #7a5410;
+    --code-bg: #24313a;
+    --code-ink: #dce7ea;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Pretendard", "Pretendard Variable", -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 48px 28px 96px; }
+
+  header.doc { border-bottom: 3px solid var(--ink); padding-bottom: 28px; margin-bottom: 40px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(28px, 4.5vw, 40px); line-height: 1.25; margin: 0 0 14px;
+    font-weight: 800; letter-spacing: -.01em; text-wrap: balance;
+  }
+  .meta { color: var(--ink-soft); font-size: 14px; margin: 0; }
+  .meta code { font-size: 13px; }
+
+  nav.toc {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px 24px; margin-bottom: 48px;
+  }
+  nav.toc p { margin: 0 0 8px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--ink-soft); }
+  nav.toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 40px; font-size: 15px; }
+  nav.toc li { margin: 3px 0; break-inside: avoid; }
+  nav.toc a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+  nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); border-bottom-color: var(--accent); }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+
+  section { margin-bottom: 56px; }
+  h2 {
+    font-size: 23px; font-weight: 800; letter-spacing: -.01em; margin: 0 0 6px;
+    display: flex; align-items: baseline; gap: 12px; text-wrap: balance;
+  }
+  h2 .no {
+    font-family: Consolas, "JetBrains Mono", monospace; font-size: 15px;
+    color: var(--accent); font-weight: 700; flex: none;
+  }
+  h2 + .lede { margin-top: 2px; }
+  .rule { height: 2px; background: var(--line); border: 0; margin: 10px 0 20px; }
+  h3 { font-size: 17px; font-weight: 700; margin: 28px 0 8px; }
+  p { margin: 0 0 14px; max-width: 72ch; }
+  .lede { color: var(--ink-soft); }
+  ul, ol.body-list { margin: 0 0 14px; padding-left: 24px; max-width: 72ch; }
+  li { margin: 4px 0; }
+  strong { font-weight: 700; }
+
+  code {
+    font-family: Consolas, "JetBrains Mono", "D2Coding", monospace;
+    font-size: .88em; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 6px;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); border-radius: 6px;
+    padding: 18px 20px; overflow-x: auto; margin: 0 0 16px;
+    font-size: 13.5px; line-height: 1.65;
+  }
+  pre code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
+  pre .cm { color: #8fa8b3; }
+  pre .hl { color: #ffd479; }
+
+  .tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; background: #fff; }
+  th {
+    text-align: left; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-soft); background: var(--panel);
+    padding: 10px 14px; border-bottom: 2px solid var(--line); white-space: nowrap;
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td code { white-space: nowrap; }
+  .num { font-family: Consolas, monospace; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
+
+  .pill {
+    display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .06em;
+    padding: 2px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .pill.new { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-line); }
+
+  .callout {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 0 0 16px; max-width: 76ch;
+  }
+  .callout.warn { border-left-color: var(--warn-line); background: var(--warn-bg); }
+  .callout p { margin: 0 0 6px; } .callout p:last-child { margin: 0; }
+  .callout .tag { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .callout .tag { color: var(--accent); }
+  .callout.warn .tag { color: var(--warn-ink); }
+
+  .route { list-style: none; padding: 0; margin: 0 0 16px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .route li { display: grid; grid-template-columns: minmax(220px, 1.2fr) auto minmax(150px, .8fr) 1.4fr; gap: 14px; align-items: center; padding: 12px 16px; margin: 0; background: #fff; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+  .route li:last-child { border-bottom: 0; }
+  .route .arrow { color: var(--ink-soft); font-family: Consolas, monospace; }
+  .route .dest { font-family: Consolas, monospace; font-weight: 700; color: var(--accent); }
+  .route .note { color: var(--ink-soft); font-size: 13.5px; }
+  .route li.bypass { background: var(--warn-bg); }
+  .route li.bypass .dest { color: var(--warn-ink); }
+  @media (max-width: 720px) {
+    .route li { grid-template-columns: 1fr; gap: 2px; }
+    .route .arrow { display: none; }
+  }
+
+  footer.doc {
+    border-top: 2px solid var(--line); margin-top: 24px; padding-top: 20px;
+    font-size: 14px; color: var(--ink-soft);
+  }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+<header class="doc">
+  <p class="eyebrow">Total ITO · 개발 참조 문서</p>
+  <h1>스킬 트리거 체계 상세</h1>
+  <p class="meta">2026-08-06 기준 · 플러그인 v0.9.2 · 원본 <code>docs/skill-triggers.md</code> (커밋 72b2169)</p>
+</header>
+
+<nav class="toc" aria-label="목차">
+  <p>목차</p>
+  <ol>
+    <li><a href="#s1">개요</a></li>
+    <li><a href="#s2">트리거 메커니즘 — 2겹</a></li>
+    <li><a href="#s3">두 층 구조와 동기화 원칙</a></li>
+    <li><a href="#s4">등록 트리거 전체 표</a></li>
+    <li><a href="#s5">라우팅 설계 원칙</a></li>
+    <li><a href="#s6">vibe 스킬 상세</a></li>
+    <li><a href="#s7">새 정적 스킬 추가 체크리스트</a></li>
+    <li><a href="#s8">사용 예시</a></li>
+    <li><a href="#s9">검증 방법</a></li>
+  </ol>
+</nav>
+
+<section id="s1">
+  <h2><span class="no">1</span>개요</h2>
+  <hr class="rule">
+  <p>harness가 설치된 대상 프로젝트에서 개선/개발 요청은 배포된 스킬(analyze-impact, safe-modify, scaffold-feature 등)을 경유해 처리되는 것이 설계 의도다. 스킬을 경유해야 <code>_workspace/index/*.json</code>(인덱스) · <code>.claude/patterns/*.md</code>(컨벤션) · 영향도/안전성 게이트가 적용된다.</p>
+  <p>2026-08-06 이전에는 트리거 문구가 한정 표현("컨벤션 준수", "안전하게 수정")만 등록돼 있어, <strong>"개발해줘" / "고쳐줘" 같은 범용 요청은 어느 스킬에도 매칭되지 않고 게이트 없는 즉흥 수정(바이브코딩)으로 처리되는 커버리지 구멍</strong>이 있었다. 이를 해소하기 위해 3가지를 추가했다.</p>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>추가 항목</th><th>내용</th></tr></thead>
+      <tbody>
+        <tr><td><strong>축약 호출</strong></td><td>"영향도 [대상]", "안전수정 [내용]" 등 짧은 단어로 스킬 호출</td></tr>
+        <tr><td><strong>범용 문구</strong></td><td>"개발해줘" → scaffold-feature, "고쳐줘" → safe-modify 를 기본 경로로 등록</td></tr>
+        <tr><td><strong>vibe 스킬 <span class="pill new">신규</span></strong></td><td>"알아서 해줘" 등 명시적 문구로만 게이트를 생략하는 별도 경로</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s2">
+  <h2><span class="no">2</span>트리거 메커니즘 — 2겹, 둘 다 자연어 매칭</h2>
+  <hr class="rule">
+
+  <h3>2-1. 스킬 frontmatter description</h3>
+  <p>각 SKILL.md(플러그인 전역) / <code>.claude/skills/*.md</code>(대상 프로젝트 배포본)의 frontmatter <code>description</code>에 트리거 문구가 등록돼 있다. Claude가 사용자 요청을 읽고 description과 매칭되는 스킬을 선택한다.</p>
+
+  <h3>2-2. 대상 프로젝트 CLAUDE.md "자동 워크플로우" 표</h3>
+  <p><code>agents/lib/claude_md.md.template</code>의 자동 워크플로우 표(상황 → 스킬 매핑)가 harness-init 시 대상 프로젝트 CLAUDE.md로 조립돼 매 세션 컨텍스트에 로드된다. description 매칭과 함께 Claude의 판단 근거가 된다.</p>
+
+  <h3>2-3. 중요한 제약 — deterministic hook 아님</h3>
+  <ul>
+    <li>두 메커니즘 모두 <strong>LLM 판단 기반 확률 매칭</strong>이다. 등록 문구와 정확히 일치하지 않는 표현은 스킬을 안 탈 수 있다.</li>
+    <li><code>settings.json</code>의 PreToolUse/PostToolUse hooks로는 스킬 트리거를 강제할 수 없다 — <code>agents/writer.md</code>의 "금지: 의미 없는 hooks 생성" 절에 명시된 확립 원칙. hooks는 빌드 검증 결과 저장, 위험 파일 수정 차단(exit 1)에만 쓴다.</li>
+    <li><strong>보장 경로는 슬래시 직접 호출뿐</strong>: <code>/total-ito:safe-modify</code> 등.</li>
+  </ul>
+</section>
+
+<section id="s3">
+  <h2><span class="no">3</span>두 층 구조 — 문구 수정 시 양쪽 동기화 필수</h2>
+  <hr class="rule">
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>층</th><th>위치</th><th>배포 방식</th></tr></thead>
+      <tbody>
+        <tr><td><strong>플러그인 전역</strong></td><td><code>skills/&lt;name&gt;/SKILL.md</code></td><td>플러그인 설치만 하면 어느 프로젝트에서든 활성</td></tr>
+        <tr><td><strong>대상 프로젝트 배포</strong></td><td><code>agents/lib/skills/&lt;name&gt;.md.template</code></td><td>harness-init 시 <code>skills_builder.py</code>가 <code>.claude/skills/&lt;name&gt;.md</code>로 무-LLM 복사</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <span class="tag">동기화 원칙</span>
+    <p>정적 스킬 6종(analyze-impact / safe-modify / scaffold-feature / vibe / plan-migration / review-sql)은 <strong>두 층에 같은 내용이 존재</strong>한다. 트리거 문구를 고칠 때 한쪽만 고치면 플러그인 전역과 배포본의 동작이 어긋나므로 반드시 양쪽을 함께 수정한다.</p>
+  </div>
+</section>
+
+<section id="s4">
+  <h2><span class="no">4</span>등록 트리거 전체 표</h2>
+  <hr class="rule">
+
+  <h3>4-1. 축약 호출 <span class="pill new">2026-08-06 신규</span></h3>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>축약 문구</th><th>스킬</th><th>사용 형식</th></tr></thead>
+      <tbody>
+        <tr><td>영향도, 임팩트</td><td><code>analyze-impact</code></td><td><code>영향도 UserService.updateUser</code></td></tr>
+        <tr><td>안전수정</td><td><code>safe-modify</code></td><td><code>안전수정 로그인 타임아웃 30초로</code></td></tr>
+        <tr><td>스캐폴드</td><td><code>scaffold-feature</code></td><td><code>스캐폴드 쿠폰 발급</code></td></tr>
+        <tr><td>마이그</td><td><code>plan-migration</code></td><td><code>마이그 iBatis → MyBatis</code></td></tr>
+        <tr><td>SQL리뷰, 쿼리리뷰</td><td><code>review-sql</code></td><td><code>SQL리뷰 selectOrderList</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>4-2. 범용 문구 <span class="pill new">신규 — 게이트 경로가 기본값</span></h3>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>범용 문구</th><th>라우팅</th><th>실행 내용</th></tr></thead>
+      <tbody>
+        <tr><td>"수정해줘", "고쳐줘", "개선해줘", "버그 잡아줘", "이거 바꿔줘"</td><td><code>safe-modify</code></td><td>사전 영향 분석 → 적용 → 사후 GO/HOLD/STOP</td></tr>
+        <tr><td>"개발해줘", "구현해줘", "코드 짜줘", "새 기능 만들어줘"</td><td><code>scaffold-feature</code></td><td>patterns 로드 → 컨벤션 보일러플레이트 + 테스트 골격 + 영향 체크</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>4-3. vibe (알아서 모드) <span class="pill new">신규</span></h3>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>문구</th><th>동작</th></tr></thead>
+      <tbody>
+        <tr><td>"알아서 해줘", "그냥 해줘", "바이브로", "바이브 코딩", "빠르게 그냥 고쳐", "vibe"</td><td>게이트 생략, 즉시 수정 (상세는 6절)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>4-4. 기존 일반 문구 (변경 없음)</h3>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>스킬</th><th>대표 문구</th></tr></thead>
+      <tbody>
+        <tr><td><code>analyze-impact</code></td><td>"이거 수정하면 어디 영향?", "이 함수 수정해도 돼?", "어디서 쓰이고 있어?"</td></tr>
+        <tr><td><code>safe-modify</code></td><td>"안전하게 수정", "이 패치 적용해도 돼?", "긴급 핫픽스", "GO/NO-GO?"</td></tr>
+        <tr><td><code>scaffold-feature</code></td><td>"[기능명] 기능 추가", "패턴대로 만들어줘", "보일러플레이트 생성"</td></tr>
+        <tr><td><code>plan-migration</code></td><td>"Spring Boot로 마이그레이션", "전환 계획", "리프트앤시프트"</td></tr>
+        <tr><td><code>review-sql</code></td><td>"이 쿼리 성능", "N+1 확인", "DDL 영향 분석"</td></tr>
+        <tr><td><code>trace-logic</code></td><td>"이 API 어떻게 처리돼?", "처리 흐름", "어떻게 동작해?"</td></tr>
+        <tr><td><code>find-feature</code></td><td>"결제 관련 파일 어디 있어?", "찾아줘", "담당 클래스"</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>writer가 프로젝트별로 직접 작성하는 스킬(trace / find-logic / scaffolder / cross-repo-*)의 트리거는 프로젝트마다 다르다 — 생성 규칙: 한국어 ≥3개 + 영어 ≥2개 + 스택 키워드 ≥1개.</p>
+</section>
+
+<section id="s5">
+  <h2><span class="no">5</span>라우팅 설계 원칙</h2>
+  <hr class="rule">
+  <ul class="route">
+    <li>
+      <span>"개발해줘 / 구현해줘 / 새 기능"</span>
+      <span class="arrow">→</span>
+      <span class="dest">scaffold-feature</span>
+      <span class="note">컨벤션 기반 생성 · 기본값</span>
+    </li>
+    <li>
+      <span>"수정해줘 / 고쳐줘 / 개선해줘"</span>
+      <span class="arrow">→</span>
+      <span class="dest">safe-modify</span>
+      <span class="note">게이트 포함 · 기본값</span>
+    </li>
+    <li class="bypass">
+      <span>"알아서 해줘 / 그냥 해줘 / 바이브로"</span>
+      <span class="arrow">→</span>
+      <span class="dest">vibe</span>
+      <span class="note">게이트 생략 · 명시적 opt-out</span>
+    </li>
+    <li>
+      <span><code>/total-ito:&lt;스킬명&gt;</code></span>
+      <span class="arrow">→</span>
+      <span class="dest">해당 스킬</span>
+      <span class="note">확정 경로 (유일한 보장 수단)</span>
+    </li>
+  </ul>
+  <ul>
+    <li><strong>기본값 = 게이트 경로.</strong> 범용 요청은 harness의 인덱스·패턴·안전성 평가를 태운다.</li>
+    <li><strong>게이트 생략은 opt-out 명시로만.</strong> 사용자가 "알아서/그냥/바이브"라고 말했을 때만 vibe가 탄다. 이 원칙은 vibe SKILL.md 본문과 safe-modify/scaffold-feature description 양쪽에 교차 명시돼 있다.</li>
+    <li>safe-modify vs scaffold-feature 분기: 기존 코드 변경이면 safe-modify, 새 파일/기능 생성이면 scaffold-feature.</li>
+  </ul>
+</section>
+
+<section id="s6">
+  <h2><span class="no">6</span>vibe 스킬 상세</h2>
+  <hr class="rule">
+  <p>파일: <code>skills/vibe/SKILL.md</code> (전역) + <code>agents/lib/skills/vibe.md.template</code> (배포용, 내용 동일).</p>
+
+  <h3>규칙 3개</h3>
+  <ol class="body-list">
+    <li><strong>외과적 변경 원칙 유지</strong> — 요청된 부분만 수정. 인접 코드·주석·포맷 "개선" 금지. (게이트를 생략해도 CLAUDE.md 보편 원칙 Rule 3은 그대로 적용.)</li>
+    <li><code>.claude/patterns/*.md</code> 있으면 가볍게 참고 — 강제 아님, 로드 실패해도 진행.</li>
+    <li>완료 후 변경 파일 목록 한 줄 보고.</li>
+  </ol>
+
+  <h3>승격 조건</h3>
+  <div class="callout warn">
+    <span class="tag">해당 시 safe-modify 승격 제안 — 바로 진행 금지</span>
+    <p>· DB 스키마 변경 (DDL, 컬럼 추가/삭제)<br>
+       · 외부 API 계약 변경 (요청/응답 필드, 엔드포인트)<br>
+       · 트랜잭션 경계 변경<br>
+       · 3개 이상 파일에 걸친 수정</p>
+  </div>
+
+  <h3>설계 근거</h3>
+  <ul>
+    <li>사소한 변경(라벨·로그·오타)까지 매번 영향분석+사후평가를 태우면 토큰·시간 낭비 — 게이트 생략 경로가 필요.</li>
+    <li>단 게이트 생략이 암묵적으로 일어나면 원래의 커버리지 구멍과 동일해짐 — 그래서 명시적 문구 전용 스킬로 분리.</li>
+    <li>승격 조건은 "게이트 생략이 실제로 위험해지는 지점"을 기계적으로 판정 가능한 4가지로 한정.</li>
+  </ul>
+</section>
+
+<section id="s7">
+  <h2><span class="no">7</span>파이프라인 연결 지점 — 새 정적 스킬 추가 체크리스트</h2>
+  <hr class="rule">
+  <p>vibe 추가 시 실제로 수정한 10개 지점. <strong>새 정적 스킬을 추가할 때 이 목록을 순서대로 따라가면 된다.</strong></p>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>#</th><th>파일</th><th>수정 내용</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td><code>agents/lib/skills/&lt;name&gt;.md.template</code></td><td>신규 생성 — frontmatter(name + description에 트리거 문구) + 본문</td></tr>
+        <tr><td class="num">2</td><td><code>skills/&lt;name&gt;/SKILL.md</code></td><td>전역용 동일 내용 생성</td></tr>
+        <tr><td class="num">3</td><td><code>skills_builder.py</code> — <code>ALWAYS_DEPLOY</code> / <code>CONDITIONAL_DEPLOY</code></td><td>배포 목록 등록. 조건부면 <code>decision_for()</code> 로직과 writer_decisions.json 계약도 확인</td></tr>
+        <tr><td class="num">4</td><td><code>skills_builder.py</code> — 02_writer_files.md 생성 문자열</td><td>"[skills_builder.py가 뒤이어 배포]" 목록에 행 추가</td></tr>
+        <tr><td class="num">5</td><td><code>skills_builder.py</code> — <code>ITO_SKILL_ORDER</code></td><td>ito-guide.md 섹션 나열 순서에 추가</td></tr>
+        <tr><td class="num">6</td><td><code>ito_guide.md.template</code></td><td><code>&lt;!-- SKILL:name --&gt;</code> 블록 추가 (용도 + 트리거 예시 3개). <span class="pill warn">함정</span> 블록이 없으면 ITO_SKILL_ORDER에 있어도 <strong>조용히 스킵됨</strong></td></tr>
+        <tr><td class="num">7</td><td><code>validator_checks.py</code> — <code>STATIC_OR_PREEXISTING_SKILLS</code></td><td>check3(트리거 품질 채점) 제외 목록에 추가. <span class="pill warn">함정</span> 누락 시 정적 스킬이 <strong>매 프로젝트마다 트리거 부실 FAIL 오탐</strong> (2026-07-15 발견된 버그 패턴)</td></tr>
+        <tr><td class="num">8</td><td><code>claude_md.md.template</code></td><td>자동 워크플로우 표에 행 추가 (대상 프로젝트 CLAUDE.md에 반영)</td></tr>
+        <tr><td class="num">9</td><td>루트 <code>CLAUDE.md</code></td><td>파일 구조 표 + 자동 워크플로우 표 + 변경 이력</td></tr>
+        <tr><td class="num">10</td><td><code>.claude-plugin/plugin.json</code></td><td>버전 bump + description 스킬 수 갱신</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <span class="tag">트리거 문구만 추가/수정할 때 (스킬 신설 아님)</span>
+    <p>3절의 두 층(<code>agents/lib/skills/*.md.template</code> + <code>skills/*/SKILL.md</code>) description을 <strong>양쪽 동일하게</strong> 수정 → 라우팅 표현이 바뀌면 <code>claude_md.md.template</code> 자동 워크플로우 표 확인 → 버전 bump → push → <code>claude plugin update total-ito@total-ito</code>.</p>
+  </div>
+</section>
+
+<section id="s8">
+  <h2><span class="no">8</span>사용 예시</h2>
+  <hr class="rule">
+<pre><code><span class="cm"># 축약 호출</span>
+영향도 UserService.updateUser
+안전수정 로그인 타임아웃 30초로 변경
+스캐폴드 쿠폰 발급
+마이그 iBatis → MyBatis
+SQL리뷰 selectOrderList
+
+<span class="cm"># 범용 문구 (게이트 경로)</span>
+주문 취소 기능 개발해줘          <span class="hl">→ scaffold-feature</span>
+세션 만료 버그 고쳐줘            <span class="hl">→ safe-modify</span>
+
+<span class="cm"># 알아서 모드 (게이트 생략)</span>
+알아서 해줘 — 버튼 라벨만 바꿔
+그냥 해줘, 로그 한 줄 추가
+
+<span class="cm"># 슬래시 (확정 경로, 플러그인 전역)</span>
+/total-ito:safe-modify
+/total-ito:scaffold-feature
+/total-ito:vibe</code></pre>
+  <p>기존 harness가 설치된 프로젝트에 새 트리거를 반영하려면: 플러그인 업데이트 후 해당 프로젝트에서 <code>"스킬만 다시 생성"</code> 요청 (부분 증분 — skills_builder.py 재실행으로 배포본 갱신).</p>
+</section>
+
+<section id="s9">
+  <h2><span class="no">9</span>검증 방법</h2>
+  <hr class="rule">
+  <p>새 스킬/트리거 반영 후 아래 두 가지를 실행한다 (vibe 추가 시 실제 수행한 검증).</p>
+
+  <h3>1. 더미 프로젝트 배포 확인</h3>
+<pre><code><span class="cm"># 더미 루트에 _workspace/writer_decisions.json (detected_stack 등 최소 필드) 준비 후</span>
+python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/skills_builder.py" --root &lt;더미루트&gt;</code></pre>
+  <p>확인: <code>.claude/skills/&lt;name&gt;.md</code> 배포됨, <code>_workspace/02_writer_files.md</code> 목록에 포함, <code>.claude/ito-guide.md</code>에 섹션 생성됨.</p>
+
+  <h3>2. validator 오탐 확인</h3>
+<pre><code>python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/validator_checks.py" --root &lt;더미루트&gt;</code></pre>
+  <p>확인: <code>_workspace/validator_mechanical.json</code>에 새 스킬 관련 FAIL/WARN 없음 (check3 제외 목록 누락 시 여기서 트리거 부실 FAIL이 나타남).</p>
+</section>
+
+<footer class="doc">
+  <p><strong>관련 이력</strong></p>
+  <ul>
+    <li>2026-08-06 — 본 문서가 다루는 트리거 확장 3종 구현 (커밋 bf82dfb vibe 신설, 43713c2 축약+범용 문구, 4a008a4 문서·버전 0.9.1).</li>
+    <li>2026-07-23 — check3에 STATIC_OR_PREEXISTING_SKILLS 제외 도입 (정적 스킬 오탐 FAIL 해소).</li>
+    <li>2026-07-14 — 정적 스킬 5종을 writer LLM 재작성에서 템플릿 무-LLM 복사(skills_builder.py)로 전환.</li>
+  </ul>
+  <p>원본: <code>total_ito/docs/skill-triggers.md</code></p>
+</footer>
+
+</div>

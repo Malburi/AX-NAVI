@@ -1,0 +1,254 @@
+# ito-guide — {{PROJECT_NAME}} 하네스 사용 설명서
+
+> {{HEADER_DESC}}
+> 스택: {{STACK_LINE}}
+
+---
+
+## 1. 스킬 사용법
+
+하네스에 등록된 스킬은 Claude에게 특정 문장을 입력하면 자동으로 트리거됩니다. 각 스킬의 용도와 트리거 예시를 아래에 정리했습니다.
+
+{{SKILL_SECTIONS}}
+
+## 2. 에이전트 직접 호출
+
+### `domain-expert` — 프로젝트 도메인 지식 에이전트
+
+파일 위치: `{{PROJECT_ROOT}}/.claude/agents/domain-expert.md`
+
+이 에이전트는 프로젝트의 전체 분석 결과(스택·아키텍처·의존성 그래프·데이터 흐름·트랜잭션 경계·외부 통신·주의 결함)를 내장하고 있습니다. 다른 에이전트가 프로젝트 맥락이 필요할 때 자동으로 참조되며, 다음과 같은 상황에서 직접 호출할 수 있습니다.
+
+**직접 호출 시나리오:**
+
+```
+# 아키텍처 관련 질문
+"domain-expert에게: 외부 연동 인터페이스들의 역할을 설명해줘"
+
+# 비즈니스 로직 맥락이 필요한 경우
+"domain-expert를 참조해서 이 처리 흐름의 취약점을 분석해줘"
+
+# 트랜잭션/데이터 흐름 확인
+"domain-expert: 이 테이블 쓰기의 트랜잭션 경계를 설명해줘"
+```
+
+**갱신 방법:** 코드 대규모 변경 후 `"인덱스만 갱신해줘"`로 analyzer를 재실행하면 `domain-expert.md`도 함께 갱신됩니다. 이 파일은 `_workspace/01_analyzer_report.md`의 내용을 그대로 주입한 것입니다.
+
+---
+
+## 3. 패턴 파일 참조
+
+패턴 파일은 `{{PROJECT_ROOT}}/.claude/patterns/` 아래에 있으며, `scaffold-feature`가 실제 파일을 생성할 때 컨벤션 기준으로 활용합니다.
+
+> 패턴 파일이 스켈레톤(추출 대상·안티패턴 목록만 기재) 상태라면 `"패턴 추출해줘"` 명령으로 `pattern-extractor` 에이전트를 호출해 실제 코드 샘플 기반의 컨벤션을 채울 수 있습니다.
+
+### 패턴 파일별 용도
+
+| 파일 | 용도 | 연계 스킬 |
+|------|------|-----------|
+{{PATTERNS_TABLE_ROWS}}
+
+### `scaffold-feature`와의 연계 방식
+
+`scaffold-feature`를 호출하면 다음 순서로 패턴 파일을 활용합니다.
+
+```
+1. .claude/patterns/*.md 로드 (없으면 pattern-extractor 먼저 실행)
+2. 신규 기능이 어떤 레이어에 걸치는지 판별
+3. 해당 레이어의 패턴 파일에서 "올바른 패턴" 참조 → 보일러플레이트 생성
+4. "안티패턴" 목록 대조 → 생성된 코드에서 재발 방지 확인
+5. 테스트 골격 생성
+```
+
+**패턴 파일을 채우려면:**
+
+```
+"패턴 추출해줘"
+```
+
+---
+
+## 4. 인덱스 파일 설명
+
+인덱스 파일은 `{{PROJECT_ROOT}}/_workspace/index/` 아래에 있으며, 코드 수정 전 영향 범위를 빠르게 확인하는 핵심 자원입니다. 스킬과 에이전트가 grep 대신 인덱스를 1순위로 활용합니다.
+
+| 파일 | 용도 | 주요 활용 스킬 |
+|------|------|--------------|
+| `call_graph.json` | 함수 간 호출 관계 그래프 | `analyze-impact`, `trace` |
+| `symbols.json` | 모듈·클래스·함수·라우트 → 파일명·라인 번호 매핑. "어디 있어?" 질문의 1순위 조회 대상 | `find-logic`, `trace` |
+| `transactions.json` | DB 트랜잭션 경계 목록 | `safe-modify`, `review-sql` |
+| `external_io.json` | 외부 시스템 연동 지점 (HTTP/SOAP/MQ/DB 연결) | `trace`, `analyze-impact` |
+| `sql_usage.json` | SQL 텍스트 ↔ 사용 함수/테이블 매핑 | `review-sql`, `find-logic` |
+| `schema.json` | DB 스키마 (테이블·컬럼·키) | `scaffold-feature`, `review-sql` |
+| `dead_code.json` | 데드 코드 후보 목록 (정적 판정 — 자동 삭제 금지) | `find-logic` |
+| `env_branches.json` | 환경 분기 정보 (환경 변수·설정 파일 분기 위치) | `safe-modify`, `plan-migration` |
+{{API_CONTRACT_ROW}}
+
+### 코드 수정 전 영향 확인 방법
+
+코드를 수정하기 전에는 다음 순서로 인덱스를 참조하세요.
+
+```
+1. 수정 대상 확인
+   → symbols.json 에서 함수명/라우트 검색 → 파일:라인 특정
+
+2. 호출 영향 확인
+   → call_graph.json 에서 해당 함수를 호출하는 상위/하위 노드 확인
+
+3. SQL/DB 영향 확인 (DB 변경 시)
+   → sql_usage.json 에서 테이블/컬럼 사용처 역추적
+   → schema.json 에서 실 스키마와 대조
+
+4. 외부 연동 영향 확인 (외부 시스템 관련 수정 시)
+   → external_io.json 에서 연동 지점 확인
+   → transactions.json 에서 트랜잭션 경계 재확인
+
+5. 데드 코드 여부 교차 확인
+   → dead_code.json 에서 수정 대상이 실제로 미사용인지 확인
+
+또는 analyze-impact 스킬에 자연어로 대상을 알려주면 위 과정을 자동 수행합니다.
+```
+
+---
+
+## 5. 실전 시나리오
+
+{{SCENARIOS_MD}}
+
+---
+
+## 6. 주의사항
+
+`CLAUDE.md`의 "작업 시 주의사항" 핵심 항목을 요약합니다. 코드 수정 전 반드시 확인하세요.
+
+{{CAUTIONS_MD}}
+
+---
+
+## 7. 하네스 갱신
+
+코드를 크게 변경한 후에는 인덱스와 패턴이 outdated될 수 있습니다.
+
+**인덱스 갱신 (코드 구조/로직 변경 후):**
+
+```
+"인덱스만 갱신해줘"
+```
+
+→ `analyzer`를 재실행해 `_workspace/index/*.json` 전체와 `domain-expert.md`를 업데이트합니다.
+
+**패턴 갱신 (컨벤션 변경 또는 신규 패턴 추가 후):**
+
+```
+"패턴 추출해줘"
+```
+
+→ `pattern-extractor`를 호출해 `.claude/patterns/*.md` 본문을 실제 코드 샘플로 채웁니다.
+
+<!-- ===================== SKILL BLOCKS (아래는 본문에 포함되지 않음 — skills_builder.py가 {{SKILL_SECTIONS}} 조립에 사용) ===================== -->
+
+<!-- SKILL:trace -->
+### {{N}}. `trace` — 요청 흐름 추적
+
+**용도:** {{TRACE_USAGE}}
+
+**트리거 예시:**
+{{TRACE_TRIGGERS}}
+
+<!-- SKILL:find-logic -->
+### {{N}}. `find-logic` — 코드 위치 탐색
+
+**용도:** {{FINDLOGIC_USAGE}}
+
+**트리거 예시:**
+{{FINDLOGIC_TRIGGERS}}
+
+<!-- SKILL:scaffolder -->
+### {{N}}. `scaffolder` — 신규 모듈 체크리스트
+
+**용도:** {{SCAFFOLDER_USAGE}}
+
+**트리거 예시:**
+{{SCAFFOLDER_TRIGGERS}}
+
+<!-- SKILL:analyze-impact -->
+### {{N}}. `analyze-impact` — 변경 영향도 분석
+
+**용도:** 함수·파일·SQL·DB 컬럼·엔드포인트를 수정하기 전에 직간접 영향 범위와 위험도(1~10)를 산출한다. `_workspace/index/` 인덱스를 활용해 호출 그래프·트랜잭션 경계·외부 통신까지 추적한다.
+
+**트리거 예시:**
+- `"이 함수 수정하면 어디 영향 있어?"`
+- `"이 컬럼 이름 바꾸면 어디 영향?"`
+- `"이 함수 수정해도 돼?"`
+
+<!-- SKILL:safe-modify -->
+### {{N}}. `safe-modify` — 안전한 코드 변경
+
+**용도:** 코드 변경을 적용하기 전후로 영향도 분석(analyze-impact) → 변경 적용 → 사후 안전성 평가(GO/HOLD/STOP)를 자동으로 수행하는 워크플로우. 회귀 위험이 있는 변경에 사용한다.
+
+**트리거 예시:**
+- `"이 변경 안전하게 적용해줘"`
+- `"이 변경 회귀 없이 진행해줘"`
+- `"이 패치 적용해도 돼?"`
+
+<!-- SKILL:scaffold-feature -->
+### {{N}}. `scaffold-feature` — 컨벤션 준수 신규 기능 생성
+
+**용도:** `.claude/patterns/*.md`에 추출된 컨벤션을 로드한 뒤 신규 기능 파일을 실제로 생성한다. `scaffolder`가 체크리스트만 제공한다면, 이 스킬은 보일러플레이트 코드와 테스트 골격까지 생성한다.
+
+**트리거 예시:**
+- `"[기능명] 패턴대로 만들어줘"`
+- `"신규 모듈 컨벤션 준수해서 생성해줘"`
+- `"scaffold feature: [기능명]"`
+
+<!-- SKILL:vibe -->
+### {{N}}. `vibe` — 빠른 작업 모드 (영향·안전 에이전트 생략)
+
+**용도:** 영향도 분석·패턴 적합성 리뷰·안전성 평가 에이전트는 생략하되, 구조화 패턴 선택·실제 기준 파일 확인·최소 실행 검증은 유지한다. 사소한 변경을 빠르게 처리할 때 사용하며 스키마·API 계약·트랜잭션·3개 이상 파일·패턴 근거 부재는 safe-modify/scaffold-feature로 승격한다.
+
+**트리거 예시:**
+- `"알아서 해줘"`
+- `"그냥 해줘"`
+- `"바이브로 빠르게 고쳐줘"`
+
+<!-- SKILL:plan-migration -->
+### {{N}}. `plan-migration` — 마이그레이션 계획 수립
+
+**용도:** 스택 마이그레이션의 단계별 계획·매핑 테이블·위험 등록부·테스트 전략·롤백 시나리오를 생성한다.
+
+**트리거 예시:**
+- `"[대상 스택]으로 마이그레이션 계획 세워줘"`
+- `"레거시 제거 마이그레이션 계획"`
+- `"migration plan"`
+
+**출력:** `_workspace/migration/` 하위에 인벤토리·매핑 테이블·단계별 계획·위험 등록부·테스트 전략·롤백 계획 파일 생성.
+
+<!-- SKILL:review-sql -->
+### {{N}}. `review-sql` — SQL 리뷰
+
+**용도:** SQL의 영향도·성능·보안·트랜잭션 적정성을 리뷰한다. `_workspace/index/sql_usage.json`과 `schema.json`을 기반으로 사용처 역추적, N+1 패턴, SQL 인젝션 위험, 트랜잭션 누락을 검사한다.
+
+**트리거 예시:**
+- `"이 쿼리 리뷰해줘"`
+- `"이 SQL 트랜잭션 적절한지 점검"`
+- `"SQL review: [파일/쿼리]"`
+
+<!-- SKILL:cross-repo-scaffold -->
+### {{N}}. `cross-repo-scaffold` — 백엔드+프론트 풀스택 기능 생성
+
+**용도:** 페어 연동된 이 저장소와 파트너 저장소(`{{PARTNER_ROOT}}`, {{PARTNER_TYPE}})에 걸친 신규 기능을 API 계약을 축으로 한 번에 스캐폴딩한다. 응답 필드명 일관성 확인까지 포함한다.
+
+**트리거 예시:**
+- `"API부터 화면까지 한 번에 만들어줘"`
+- `"백엔드랑 프론트 같이 scaffold해줘"`
+- `"full-stack feature: [기능명]"`
+
+<!-- SKILL:cross-repo-modify -->
+### {{N}}. `cross-repo-modify` — 백엔드+프론트 기존 기능 수정
+
+**용도:** 한쪽 변경이 API 계약(경로·필드명·타입·상태코드)을 건드리면 파트너 저장소(`{{PARTNER_ROOT}}`)까지 함께 수정해 드리프트를 막는다. 양쪽 저장소에 동시 반영이 필요한 경우에 사용한다.
+
+**트리거 예시:**
+- `"이 API 바꾸는데 프론트 영향 있으면 같이 처리해줘"`
+- `"양쪽 저장소 동시 반영해줘"`
+- `"cross-repo modify: [수정 내용]"`

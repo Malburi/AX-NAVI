@@ -1,0 +1,44 @@
+# CLAUDE.md
+
+{{PROJECT_NAME}} — {{ONE_LINE_DESC}}
+
+## 기술 스택
+{{TECH_STACK_SUMMARY}}
+
+## 요청 흐름
+{{REQUEST_FLOW}}
+
+## 주요 파일 위치
+| 레이어 | 경로 |
+|--------|------|
+{{FILE_LOCATIONS_ROWS}}
+
+## 빌드 / 실행
+{{BUILD_RUN}}
+
+## 자동 워크플로우
+| 상황 | 스킬 |
+|------|------|
+| 요청 흐름 추적, URL 추적 | trace |
+| 로직 위치 탐색 | find-logic |
+| 기본 신규 파일 체크리스트 | scaffolder |
+| **변경 영향도 분석** | analyze-impact |
+| **안전한 변경 진행** | safe-modify |
+| **범용 수정 요청 ("수정해줘", "고쳐줘", "개선해줘") — 게이트 포함** | safe-modify |
+| **컨벤션 따라 신규 기능 생성** | scaffold-feature |
+| **범용 개발 요청 ("개발해줘", "구현해줘", "코드 짜줘") — 컨벤션 기반** | scaffold-feature |
+| **알아서/바이브 ("알아서 해줘", "그냥 해줘") — 영향·안전 에이전트 생략, 패턴·최소 검증 유지** | vibe |
+| **마이그레이션 계획** | plan-migration |
+| **SQL 영향도/리뷰** | review-sql |
+| **전체 스택 기능 생성 (pair 연동 시)** | cross-repo-scaffold |
+| **기존 기능 개선/수정 양쪽 저장소 반영 (pair 연동 시)** | cross-repo-modify |
+
+축약 호출: `영향도 [대상]` `안전수정 [내용]` `스캐폴드 [기능명]` `마이그 [현재 → 목표]` `SQL리뷰 [쿼리·SQL ID]`
+
+## 작업 시 주의사항
+{{CAUTIONS}}
+{{PARTNER_SECTION}}
+## 변경 이력
+| 날짜 | 변경 내용 | 대상 | 사유 |
+|------|----------|------|------|
+| {{GENERATION_DATE}} | 초기 구성 (analyzer 출력 기반) | 전체 | harness-fin v1 적용 |
