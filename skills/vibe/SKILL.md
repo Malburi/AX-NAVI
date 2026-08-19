@@ -11,7 +11,12 @@ analyze-impact / pattern-conformance / change-safety 에이전트 게이트를 *
 1. **외과적 변경 원칙 유지** — 요청된 부분만 건드린다. 인접 코드·주석·포맷 "개선" 금지.
 2. 변경 대상 경로가 정해지면 `pattern_profile.py validate`와 `select`를 실행하고 선택된 실제 `reference_files`를 읽는다. 기존 파일의 국소 수정은 그 파일 자체의 스타일도 함께 유지한다.
 3. 신규 파일인데 검증된 preferred 프로필·실제 기준 파일이 없으면 추측 생성하지 않고 `scaffold-feature`로 승격한다.
-4. 변경 범위에 해당하는 가장 작은 테스트·빌드·린트 명령을 실제 실행한다. 실패하거나 실행하지 못하면 성공으로 보고하지 않는다.
+4. 변경 범위에 해당하는 가장 작은 테스트·빌드·린트 명령을 실제 실행한다. `verify-target.mjs detect`로 명령을 확보하고 그중 가장 작은 것을 `run`으로 돌린 뒤 `overall`과 `fail_lines`만 확인한다. 실패하거나 실행하지 못하면(감지 `count: 0` 포함) 성공으로 보고하지 않는다.
+
+```powershell
+node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/verify-target.mjs" detect --root "[프로젝트 루트]" --target "[변경 대상]"
+node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/verify-target.mjs" run --root "[프로젝트 루트]" --cmd "[고른 명령]"
+```
 5. 소스·API·DB 구조가 바뀌면 결정론적 인덱스와 wiki를 갱신한다.
 6. 완료 후 변경 파일, 적용한 기준 프로필·파일, 검증 명령과 exit code를 간단히 보고한다.
 

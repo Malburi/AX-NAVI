@@ -115,7 +115,19 @@ FAIL이면 수정 후 재검증하고, HOLD이면 사용자 결정 전 GO로 진
 
 ### 3-2. 검증 명령 실행
 
-영향받는 테스트와 프로젝트의 필수 빌드·린트 명령을 실제 실행하고 명령·exit code를 캡처한다. 실행할 수 없거나 assertion까지 도달하지 못한 검사는 PASS로 간주하지 않는다.
+먼저 결정론적 감지기로 프로젝트의 검증 명령 후보를 확보한다(부작용 없음).
+
+```powershell
+node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/verify-target.mjs" detect --root "[프로젝트 루트 절대 경로]" --target "[변경 대상 상대 경로]"
+```
+
+`detected` 목록(lint/typecheck/test/build)을 사용자에게 보여주고, 변경 범위에 해당하는 가장 작은 명령을 골라 실제 실행한다.
+
+```powershell
+node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/verify-target.mjs" run --root "[프로젝트 루트 절대 경로]" --cmd "[detected에서 고른 명령]"
+```
+
+`run`은 성공 시 요약만, 실패 시 `fail_lines`(명령당 상한)만 돌려준다 — 코드 전체를 다시 LLM에 넣지 않는다. 반환된 `commands[].cmd`·`exit`·`fail_lines`와 `overall`을 그대로 change-safety 입력에 넘긴다. `detected`가 비어 있으면(`count: 0`) 자동 검증이 없다는 뜻이므로 수동 검증 시나리오를 확보하기 전 PASS로 간주하지 않는다. 실행할 수 없거나 assertion까지 도달하지 못한 검사도 PASS로 간주하지 않는다.
 
 ### 3-3. 변경 안전성 평가
 
@@ -125,7 +137,7 @@ FAIL이면 수정 후 재검증하고, HOLD이면 사용자 결정 전 GO로 진
 Agent(
   subagent_type="total-ito:change-safety",
   description="변경 안전성 평가",
-  prompt="<변경 파일: [목록]. mode: [감지된 모드]. impact 리포트: _workspace/reports/impact_<slug>.md. 패턴 적합성: _workspace/reports/pattern_conformance_<slug>.md. 검증 명령과 exit code: [실행 결과]. 출력: _workspace/reports/safety_<slug>.md>",
+  prompt="<변경 파일: [목록]. mode: [감지된 모드]. impact 리포트: _workspace/reports/impact_<slug>.md. 패턴 적합성: _workspace/reports/pattern_conformance_<slug>.md. 검증 결과: verify-target run의 commands(cmd·exit·fail_lines)와 overall. 출력: _workspace/reports/safety_<slug>.md>",
   model="sonnet"
 )
 ```

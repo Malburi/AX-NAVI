@@ -180,7 +180,14 @@ Agent(
 
 ### 4-2. 프로젝트 검증 명령 실행
 
-분석 리포트의 빌드·테스트·린트 명령 중 생성 범위에 필요한 항목을 실제 실행하고 명령·exit code를 기록한다. 테스트 골격만 생성되고 assertion이 비어 있으면 통과 증거가 아니므로 HOLD로 표시한다.
+`verify-target.mjs detect`로 프로젝트 검증 명령을 확보한 뒤(분석 리포트의 빌드·실행 명령과 교차 확인), 생성 범위에 필요한 항목을 `run`으로 실제 실행하고 `cmd`·`exit`·`fail_lines`를 기록한다.
+
+```powershell
+node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/verify-target.mjs" detect --root "[프로젝트 루트]" --target "[생성 대상 경로]"
+node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/verify-target.mjs" run --root "[프로젝트 루트]" --cmd "[고른 명령]"
+```
+
+테스트 골격만 생성되고 assertion이 비어 있으면 통과 증거가 아니므로 HOLD로 표시한다. 감지 `count: 0`이면 자동 검증이 없다는 뜻이므로 수동 검증을 확보하기 전 GO로 보고하지 않는다.
 
 ### 4-3. 변경 안전성 평가
 
