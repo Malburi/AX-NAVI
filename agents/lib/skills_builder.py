@@ -345,6 +345,21 @@ def deploy_claude_md(root):
     return True
 
 
+def deploy_agents_md(root):
+    """agents.md.template(프로젝트 무관 정적 진입점)를 대상 루트에 AGENTS.md로 복사한다.
+    필드 치환 없이 그대로 쓴다 — 세션 진입 시 먼저 읽는 초경량 규약(인덱스 조회·로컬 검증 우선)이라
+    프로젝트별로 달라질 내용이 없다. 캐싱 접두사로서 모든 프로젝트에서 동일해야 한다."""
+    template_path = os.path.join(LIB_DIR, "agents.md.template")
+    if not os.path.isfile(template_path):
+        print(f"WARN: 템플릿 없음 — {template_path}", file=sys.stderr)
+        return False
+    with open(template_path, "r", encoding="utf-8-sig") as f:
+        content = f.read()
+    with open(os.path.join(root, "AGENTS.md"), "w", encoding="utf-8") as f:
+        f.write(content)
+    return True
+
+
 ITO_TEMPLATE = os.path.join(LIB_DIR, "ito_guide.md.template")
 
 # ito-guide 스킬 섹션 나열 순서 (존재하는 스킬만 포함)
@@ -525,6 +540,9 @@ def main():
 
     if deploy_claude_md(args.root):
         print("배포 완료: CLAUDE.md (claude_md_fields.json + 템플릿 조립)")
+
+    if deploy_agents_md(args.root):
+        print("배포 완료: AGENTS.md (정적 경량 진입점)")
 
     ito_decisions = decisions
 

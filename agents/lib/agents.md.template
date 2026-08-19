@@ -1,0 +1,15 @@
+# Agent Execution Protocol
+
+이 파일은 세션 진입 시 먼저 읽는 초경량 규약이다. 전체 위키·인덱스를 통째로 로드하지 않는다.
+
+1. **인덱스를 통째로 열지 않는다.** 대형 인덱스(`_workspace/index/*.json`)는 `query-index.mjs`로 필요한 줄만 조회한다. 규모는 `summary`로 먼저 가늠한다.
+   - `node .claude/agents/lib/query-index.mjs summary --root .`
+   - 심볼·호출관계·SQL·스키마는 `symbol` `callers` `callees` `trace` `sql` `table` `schema` 명령으로 필요한 것만.
+
+2. **전체 파일을 읽지 않는다.** 기존 패턴 확인은 파일 원문 대신 `symbol` 조회로 시그니처·위치(스켈레톤)만 본다. 원문이 꼭 필요할 때만 해당 범위를 읽는다.
+
+3. **검증은 로컬 먼저, 실패 라인만.** 코드 수정 후 LLM에 "검수해줘"로 되돌리지 않는다. `verify-target.mjs`로 검증 명령을 감지·실행하고 `overall`과 `fail_lines`만 확인한다.
+   - `node .claude/agents/lib/verify-target.mjs detect --root .`
+   - `node .claude/agents/lib/verify-target.mjs run --root . --cmd "[감지된 명령]"`
+
+4. **작업은 스킬 게이트를 탄다.** 수정은 `safe-modify`, 신규 기능은 `scaffold-feature`, 빠른 처리는 `vibe`. 세부 컨벤션·주의사항은 `CLAUDE.md`와 각 스킬을 필요한 시점에 참조한다.
