@@ -12,6 +12,7 @@
 import os
 import sys
 import re
+import gzip
 import hashlib
 from datetime import datetime, timezone, timedelta
 
@@ -28,6 +29,28 @@ class StoreError(Exception):
 
 def sha256_text(text_):
     return hashlib.sha256(text_.encode("utf-8")).hexdigest()
+
+
+# 본문은 wikihub_content_blobs 에 checksum 당 1행(dedup)으로, 512바이트 이상이면 gzip 압축해 저장한다.
+BLOB_COMPRESS_MIN = 512
+
+
+def encode_content(content):
+    """텍스트 → (algo, byte_len, data). 반환 data 는 DB blob 컬럼에 그대로 넣을 bytes."""
+    raw = (content or "").encode("utf-8")
+    if len(raw) < BLOB_COMPRESS_MIN:
+        return "raw", len(raw), raw
+    return "gzip", len(raw), gzip.compress(raw, 6)
+
+
+def decode_blob(algo, data):
+    """(algo, data) → 원본 텍스트. data 는 memoryview/bytes 모두 허용."""
+    if data is None:
+        return ""
+    raw = bytes(data)
+    if algo == "gzip":
+        raw = gzip.decompress(raw)
+    return raw.decode("utf-8")
 
 
 def utc_now():
@@ -247,7 +270,10 @@ class WikiStore:
                 m.pages.c.page_path == page_path)).mappings().first()
             if not r:
                 return None
-            return {"content": r["content"], "content_type": r["content_type"],
+            content = self._load_blob(conn, r["checksum"])
+            if content is None:  # 마이그레이션 전 구 데이터 폴백
+                content = r["content"] or ""
+            return {"content": content, "content_type": r["content_type"],
                     "current_version": r["current_version"], "updated_at": fmt_dt(r["updated_at"]),
                     "is_deleted": bool(r["is_deleted"]), "title": r["title"] or page_path}
 
@@ -258,6 +284,27 @@ class WikiStore:
                 m.pages.c.page_path == page_path, m.pages.c.is_deleted == False)  # noqa: E712
             ).first()
             return row is not None
+
+    def _ensure_blob(self, conn, checksum, content):
+        """checksum 본문이 wikihub_content_blobs 에 없으면 압축해 넣는다(dedup 지점). 있으면 skip.
+        반환: 새로 넣었으면 True, 이미 있었으면 False."""
+        exists = conn.execute(
+            select(m.content_blobs.c.checksum).where(m.content_blobs.c.checksum == checksum)
+        ).first()
+        if exists:
+            return False
+        algo, byte_len, data = encode_content(content)
+        conn.execute(insert(m.content_blobs).values(
+            checksum=checksum, algo=algo, byte_len=byte_len, data=data))
+        return True
+
+    def _load_blob(self, conn, checksum):
+        """checksum → 원본 텍스트. blob 이 없으면 None(마이그레이션 전 구 데이터는 호출부에서 content 컬럼 폴백)."""
+        r = conn.execute(select(m.content_blobs.c.algo, m.content_blobs.c.data)
+                         .where(m.content_blobs.c.checksum == checksum)).first()
+        if r is None:
+            return None
+        return decode_blob(r.algo, r.data)
 
     def save_page(self, system_key, component_key, page_path, content, content_type,
                   author="wiki-hub", change_summary=""):
@@ -273,9 +320,10 @@ class WikiStore:
                     m.pages.c.page_path == page_path)).first()
 
             if cur is None:
+                self._ensure_blob(conn, checksum, content)
                 conn.execute(insert(m.pages).values(
                     system_key=system_key, component_key=component_key, page_path=page_path,
-                    title=title, content=content, content_type=content_type, checksum=checksum,
+                    title=title, content="", content_type=content_type, checksum=checksum,
                     current_version=1, is_deleted=False, created_at=now, updated_at=now,
                 ))
                 self._insert_version(conn, system_key, component_key, page_path, 1, content,
@@ -288,10 +336,11 @@ class WikiStore:
                 return "unchanged"
 
             new_version = old_version + 1
+            self._ensure_blob(conn, checksum, content)
             conn.execute(update(m.pages).where(
                 m.pages.c.system_key == system_key, m.pages.c.component_key == component_key,
                 m.pages.c.page_path == page_path
-            ).values(title=title, content=content, content_type=content_type, checksum=checksum,
+            ).values(title=title, content="", content_type=content_type, checksum=checksum,
                      current_version=new_version, is_deleted=False, updated_at=now))
             change_type = "restored" if was_deleted else "updated"
             self._insert_version(conn, system_key, component_key, page_path, new_version, content,
@@ -321,27 +370,32 @@ class WikiStore:
 
     def _insert_version(self, conn, system_key, component_key, page_path, version_no, content,
                         content_type, checksum, change_type, change_summary, author, created_at):
+        self._ensure_blob(conn, checksum, content)
         conn.execute(insert(m.page_versions).values(
             system_key=system_key, component_key=component_key, page_path=page_path,
-            version_no=version_no, content=content, content_type=content_type, checksum=checksum,
+            version_no=version_no, content="", content_type=content_type, checksum=checksum,
             change_type=change_type, change_summary=(change_summary or "")[:490],
             author=author or "", created_at=created_at,
         ))
 
     def list_versions(self, system_key, component_key, page_path):
         with self.engine.connect() as conn:
+            j = m.page_versions.join(
+                m.content_blobs, m.content_blobs.c.checksum == m.page_versions.c.checksum, isouter=True)
             rows = conn.execute(select(
                 m.page_versions.c.version_no, m.page_versions.c.change_type,
                 m.page_versions.c.change_summary, m.page_versions.c.author,
-                m.page_versions.c.created_at, m.page_versions.c.checksum, m.page_versions.c.content,
-            ).where(
+                m.page_versions.c.created_at, m.page_versions.c.checksum,
+                m.content_blobs.c.byte_len, m.page_versions.c.content,
+            ).select_from(j).where(
                 m.page_versions.c.system_key == system_key, m.page_versions.c.component_key == component_key,
                 m.page_versions.c.page_path == page_path
             ).order_by(m.page_versions.c.version_no.desc())).all()
             return [{
                 "version_no": r.version_no, "change_type": r.change_type,
                 "change_summary": r.change_summary or "", "author": r.author or "",
-                "created_at": fmt_dt(r.created_at), "checksum": r.checksum, "size": len(r.content or ""),
+                "created_at": fmt_dt(r.created_at), "checksum": r.checksum,
+                "size": r.byte_len if r.byte_len is not None else len(r.content or ""),
             } for r in rows]
 
     def get_version(self, system_key, component_key, page_path, version_no):
@@ -352,7 +406,10 @@ class WikiStore:
             )).mappings().first()
             if not r:
                 return None
-            return {"content": r["content"], "content_type": r["content_type"],
+            content = self._load_blob(conn, r["checksum"])
+            if content is None:  # 마이그레이션 전 구 데이터 폴백
+                content = r["content"] or ""
+            return {"content": content, "content_type": r["content_type"],
                     "change_type": r["change_type"], "change_summary": r["change_summary"] or "",
                     "author": r["author"] or "", "created_at": fmt_dt(r["created_at"])}
 
@@ -393,21 +450,25 @@ class WikiStore:
         if not keyword or not keyword.strip():
             return []
         kw = keyword.strip()
-        like = f"%{kw}%"
+        kwl = kw.lower()
         with self.engine.connect() as conn:
+            # 본문이 wikihub_content_blobs(압축)로 옮겨져 content 컬럼 LIKE 프리필터가 불가하다.
+            # 범위 내 페이지를 모아 Python 에서 본문을 복원해 매칭한다.
             j = m.pages.join(
                 m.components,
                 (m.components.c.system_key == m.pages.c.system_key)
                 & (m.components.c.component_key == m.pages.c.component_key),
                 isouter=True,
+            ).join(
+                m.content_blobs, m.content_blobs.c.checksum == m.pages.c.checksum, isouter=True,
             )
             stmt = select(
                 m.pages.c.system_key, m.pages.c.component_key, m.components.c.component_type,
-                m.pages.c.page_path, m.pages.c.title, m.pages.c.content,
+                m.pages.c.page_path, m.pages.c.title, m.pages.c.content, m.pages.c.content_type,
                 m.pages.c.current_version, m.pages.c.updated_at,
+                m.content_blobs.c.algo, m.content_blobs.c.data,
             ).select_from(j).where(
                 m.pages.c.is_deleted == False,  # noqa: E712
-                or_(m.pages.c.content.like(like), m.pages.c.page_path.like(like), m.pages.c.title.like(like)),
             )
             if system_key:
                 stmt = stmt.where(m.pages.c.system_key == system_key)
@@ -417,12 +478,21 @@ class WikiStore:
 
             results = []
             for r in conn.execute(stmt).mappings():
-                content = r["content"] or ""
+                # HTML/JSON 대용량 산출물은 본문 스캔을 건너뛰고 경로·제목만 매칭한다(전문검색 대상 아님).
+                if r["content_type"] in ("text/html", "application/json"):
+                    content = ""
+                elif r["algo"] is not None:
+                    content = decode_blob(r["algo"], r["data"])
+                else:  # 마이그레이션 전 구 데이터 폴백
+                    content = r["content"] or ""
+                path_title = f'{r["page_path"]}\n{r["title"] or ""}'.lower()
+                if kwl not in content.lower() and kwl not in path_title:
+                    continue
                 results.append({
                     "system_key": r["system_key"], "component_key": r["component_key"],
                     "component_type": r["component_type"] or "common", "page_path": r["page_path"],
                     "title": r["title"] or r["page_path"], "current_version": r["current_version"],
-                    "updated_at": fmt_dt(r["updated_at"]), "hit_count": content.lower().count(kw.lower()),
+                    "updated_at": fmt_dt(r["updated_at"]), "hit_count": content.lower().count(kwl),
                     "snippets": snippets(content, kw),
                 })
                 if len(results) >= limit * 3:  # 정렬 전 여유 있게 모았다가 상위 limit만 자른다
@@ -524,6 +594,55 @@ class WikiStore:
         counts["total"] = len(rows)
         self.write_log(system_key, component_key, "migrate-v1", counts, f"v1 project_name='{project_name}'")
         return counts
+
+    # -- 본문 → blob 이관(일회성 용량 축소) ------------------------------------
+
+    def migrate_content_to_blobs(self, dry_run=False, vacuum=True):
+        """기존 pages/page_versions.content 를 wikihub_content_blobs 로 이관하고 content 컬럼을 빈 값('')으로 비운다.
+        행은 삭제하지 않는다(이력 보존). 대용량 본문 메모리 폭주를 막기 위해 행 단위로 처리한다.
+        반환: 통계 dict."""
+        stats = {"pages_rows": 0, "versions_rows": 0, "unique_checksums": 0,
+                 "blobs_existing": 0, "blobs_created": 0, "content_bytes": 0, "vacuumed": False}
+        # 이관 대상: content 에 실제 본문이 남아 있는 행. 이미 이관된 행은 content=""(빈 값)이라 제외 → 재실행 안전.
+        def _pending(tbl):
+            return (tbl.c.content.isnot(None)) & (tbl.c.content != "")
+
+        with self.engine.connect() as conn:
+            # 행 수·고유 checksum 만 SQL 로 센다 — 본문 길이(LENGTH/LEN/DATALENGTH)는 엔진마다 함수가 갈려 쓰지 않는다.
+            # 실제 본문 바이트(content_bytes)는 아래 실제 이관 패스에서 읽은 값으로 집계한다(dry-run 에서는 0).
+            checksums = set()
+            for tbl, key in ((m.pages, "pages_rows"), (m.page_versions, "versions_rows")):
+                stats[key] = conn.execute(
+                    select(func.count()).select_from(tbl).where(_pending(tbl))).scalar_one()
+                for (cs,) in conn.execute(select(tbl.c.checksum).where(_pending(tbl)).distinct()):
+                    checksums.add(cs)
+            stats["unique_checksums"] = len(checksums)
+            stats["blobs_existing"] = conn.execute(
+                select(func.count()).select_from(m.content_blobs)).scalar_one()
+
+        if dry_run:
+            return stats
+
+        for tbl in (m.pages, m.page_versions):
+            with self.engine.connect() as conn:
+                id_rows = conn.execute(
+                    select(tbl.c.id).where(_pending(tbl)).order_by(tbl.c.id)).all()
+            for (rid,) in id_rows:
+                with self.engine.begin() as tx:
+                    r = tx.execute(select(tbl.c.checksum, tbl.c.content)
+                                   .where(tbl.c.id == rid)).first()
+                    if r is None or not r.content:
+                        continue
+                    stats["content_bytes"] += len(r.content.encode("utf-8"))
+                    if self._ensure_blob(tx, r.checksum, r.content):
+                        stats["blobs_created"] += 1
+                    tx.execute(update(tbl).where(tbl.c.id == rid).values(content=""))
+
+        if vacuum and self.engine.dialect.name == "sqlite":
+            with self.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+                conn.exec_driver_sql("VACUUM")
+            stats["vacuumed"] = True
+        return stats
 
 
 def open_store(root, engine_override=None):

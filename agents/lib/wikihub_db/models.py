@@ -10,7 +10,7 @@
 """
 
 from sqlalchemy import (
-    MetaData, Table, Column, Integer, String, Text, Boolean, DateTime,
+    MetaData, Table, Column, Integer, String, Text, Boolean, DateTime, LargeBinary,
     Identity, UniqueConstraint, Index,
 )
 from sqlalchemy.dialects import mssql, postgresql, oracle
@@ -24,6 +24,17 @@ def big_text():
         .with_variant(mssql.NVARCHAR("max"), "mssql")
         .with_variant(oracle.CLOB(), "oracle")
         .with_variant(postgresql.TEXT(), "postgresql")
+    )
+
+
+def big_blob():
+    """압축된 페이지 본문처럼 길이 제한이 없어야 하는 이진 데이터.
+    mssql→VARBINARY(MAX), oracle→BLOB, postgresql→BYTEA, sqlite(기본)→BLOB."""
+    return (
+        LargeBinary()
+        .with_variant(mssql.VARBINARY("max"), "mssql")
+        .with_variant(oracle.BLOB(), "oracle")
+        .with_variant(postgresql.BYTEA(), "postgresql")
     )
 
 
@@ -51,6 +62,7 @@ T_DB = "wikihub_db_objects"
 T_ROUTE = "wikihub_frontend_routes"
 T_EXT = "wikihub_external_links"
 T_LOG = "wikihub_publish_log"
+T_BLOBS = "wikihub_content_blobs"
 
 COMPONENT_TYPES = ["backend", "frontend", "fullstack", "batch", "mobile", "common"]
 
@@ -88,7 +100,7 @@ pages = Table(
     Column("component_key", utext(100), nullable=False),
     Column("page_path", utext(300), nullable=False),
     Column("title", utext(300), server_default=""),
-    Column("content", big_text(), nullable=False),
+    Column("content", big_text(), nullable=True),  # 본문은 wikihub_content_blobs 로 이동, 하위호환 위해 컬럼 유지(신규 저장은 NULL)
     Column("content_type", utext(50), nullable=False),
     Column("checksum", utext(64), nullable=False),
     Column("current_version", Integer, nullable=False, default=1),
@@ -106,7 +118,7 @@ page_versions = Table(
     Column("component_key", utext(100), nullable=False),
     Column("page_path", utext(300), nullable=False),
     Column("version_no", Integer, nullable=False),
-    Column("content", big_text(), nullable=False),
+    Column("content", big_text(), nullable=True),  # 본문은 wikihub_content_blobs 로 이동, 하위호환 위해 컬럼 유지(신규 저장은 NULL)
     Column("content_type", utext(50), nullable=False),
     Column("checksum", utext(64), nullable=False),
     Column("change_type", utext(20), nullable=False),
@@ -183,6 +195,14 @@ publish_log = Table(
     Column("pages_deleted", Integer, nullable=False, default=0),
     Column("message", utext(1000), server_default=""),
     Column("created_at", ts(), nullable=False),
+)
+
+content_blobs = Table(
+    T_BLOBS, metadata,
+    Column("checksum", utext(64), primary_key=True),  # sha256(원본 텍스트) — pages/page_versions.checksum 과 동일 키
+    Column("algo", utext(10), nullable=False),         # "gzip" | "raw"
+    Column("byte_len", Integer, nullable=False),       # 원본(압축 전) UTF-8 바이트 길이
+    Column("data", big_blob(), nullable=False),        # algo 로 인코딩된 바이트
 )
 
 INDEX_TABLES = {"api": api_endpoints, "db": db_objects, "route": frontend_routes, "external": external_links}

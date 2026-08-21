@@ -247,6 +247,25 @@ def migrate_v1(store, mappings=None, dry_run=False):
     print("\n원본 v1 테이블은 지우지 않았습니다. 확인 후 직접 정리하세요.")
 
 
+def migrate_blobs(store, dry_run=False):
+    """기존 pages/page_versions.content 본문을 압축·dedup 해 wikihub_content_blobs 로 이관한다."""
+    stats = store.migrate_content_to_blobs(dry_run=dry_run)
+    print(f"이관 대상 행 : pages {stats['pages_rows']} + versions {stats['versions_rows']}개 "
+          f"(고유 checksum {stats['unique_checksums']}개)")
+    print(f"기존 blob    : {stats['blobs_existing']}개")
+    if dry_run:
+        print("[dry-run] 실제 이관은 --migrate-blobs 를 --dry-run 없이 다시 실행하세요. "
+              "(dedup + gzip 으로 대폭 축소됩니다)")
+        return
+    mb = stats["content_bytes"] / (1024 * 1024)
+    print(f"이관 완료    : 본문 약 {mb:.1f}MB → blob 신규 {stats['blobs_created']}개 생성, content 컬럼 비움")
+    if stats["vacuumed"]:
+        print("SQLite VACUUM 실행 완료 — 파일 크기가 실제로 줄었습니다.")
+    else:
+        print("주의: 이 엔진은 자동 축소하지 않습니다. 운영 DB 는 담당자가 직접 공간을 회수하세요 "
+              "(MSSQL: DBCC SHRINKFILE / 인덱스 재구성, PostgreSQL: VACUUM FULL, Oracle: 테이블스페이스 정리).")
+
+
 def print_list(store):
     systems = store.list_systems(include_archived=True)
     if not systems:
@@ -281,6 +300,8 @@ def main():
     parser.add_argument("--pull", action="store_true", help="발행 대신 DB → wiki 폴더로 복원")
     parser.add_argument("--list", action="store_true", help="등록된 시스템·컴포넌트 목록 출력")
     parser.add_argument("--migrate-v1", action="store_true", help="구 단일 테이블 데이터를 새 스키마로 이관")
+    parser.add_argument("--migrate-blobs", action="store_true",
+                        help="기존 content 본문을 압축·dedup 해 wikihub_content_blobs 로 이관(용량 축소)")
     parser.add_argument("--map", action="append", default=[], help="v1 이관 매핑 (반복 가능)")
     args = parser.parse_args()
 
@@ -301,6 +322,9 @@ def main():
                 return
             if args.migrate_v1:
                 migrate_v1(store, args.map, args.dry_run)
+                return
+            if args.migrate_blobs:
+                migrate_blobs(store, args.dry_run)
                 return
 
             system_key = config.resolve_system_key(project_root, env, args.system_key)
