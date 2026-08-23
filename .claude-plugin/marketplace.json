@@ -2,8 +2,8 @@
   "name": "total-ito",
   "description": "ITO/SI 조직을 위한 확장 메타 하네스 — 코드베이스 심층 분석부터 수정·개발·마이그레이션·SQL 리뷰·레거시 해석까지 지원하는 에이전트 팀과 워크플로우 스킬 모음",
   "owner": {
-    "name": "Malburi",
-    "url": "https://github.com/Malburi"
+    "name": "neoruler001",
+    "url": "https://github.com/neoruler001"
   },
   "renames": {
     "ax-std-harness": "total-ito"
@@ -14,7 +14,7 @@
       "displayName": "Total ITO",
       "source": ".",
       "description": "ITO/SI 조직을 위한 확장 메타 하네스 — 코드베이스 심층 분석 + 근거 기반 패턴 일치 코드 작성 + wiki 자동생성 + 크로스 리포 연동을 지원하는 19개 에이전트 + 17개 워크플로우 스킬",
-      "homepage": "https://github.com/Malburi/total_ito",
+      "homepage": "https://github.com/neoruler001/total_ito",
       "keywords": ["harness", "agents", "skills", "ito", "si", "legacy", "migration", "code-analysis"]
     }
   ]

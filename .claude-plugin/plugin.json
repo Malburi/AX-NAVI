@@ -5,11 +5,11 @@
   "version": "0.30.0",
   "description": "ITO/SI 조직을 위한 확장 메타 하네스 — 19 agents + 17 workflow skills (근거 기반 패턴 프로필 + 적합성 게이트 + Wiki + Cross Repo)",
   "author": {
-    "name": "Malburi",
-    "url": "https://github.com/Malburi"
+    "name": "neoruler001",
+    "url": "https://github.com/neoruler001"
   },
-  "homepage": "https://github.com/Malburi/total_ito",
-  "repository": "https://github.com/Malburi/total_ito",
+  "homepage": "https://github.com/neoruler001/total_ito",
+  "repository": "https://github.com/neoruler001/total_ito",
   "license": "MIT",
   "keywords": ["harness", "agents", "skills", "ito", "si", "legacy", "migration", "code-analysis", "sql-review"]
 }
