@@ -85,9 +85,26 @@ def iter_workspace_json_files(project_root):
             yield rel_path, abspath, WORKSPACE_JSON_CONTENT_TYPE
 
 
+def register_publisher(store, system_key, component_key, publisher, owner_role="publisher",
+                       set_as_system_owner=False):
+    """담당자를 사람 마스터에 등록하고 이 시스템·컴포넌트의 담당으로 연결한다.
+    반환: (person_id, 표시용 author 문자열)."""
+    person_id, created = store.upsert_person(
+        company=publisher["company"], employee_no=publisher["employee_no"],
+        person_name=publisher["person_name"], department=publisher.get("department"),
+        phone=publisher.get("phone"), email=publisher.get("email"))
+    store.set_system_owner(system_key, person_id, component_key=component_key,
+                           owner_role=owner_role)
+    if set_as_system_owner:
+        store.set_system_owner_person(system_key, person_id)
+    author = f"{publisher['person_name']}({publisher['employee_no']})"
+    return person_id, author, created
+
+
 def publish(store, project_root, wiki_dir, system_key, component_key, component_type,
             system_name=None, author="wikihub-db-publish", summary="", with_index=True,
-            with_workspace_json=True, dry_run=False):
+            with_workspace_json=True, dry_run=False, publisher=None, owner_role="publisher",
+            set_as_system_owner=False):
     if not os.path.isdir(wiki_dir):
         raise store_mod.StoreError(
             f"wiki 폴더 없음: {wiki_dir} — 먼저 harness의 generate-wiki 로 wiki 를 생성하세요.")
@@ -104,6 +121,9 @@ def publish(store, project_root, wiki_dir, system_key, component_key, component_
     if dry_run:
         print(f"[dry-run] 시스템={system_key} 컴포넌트={component_key}({component_type}) "
               f"위키 페이지 {len(pages)}개 + 워크스페이스 JSON {len(json_pages)}개")
+        if publisher:
+            print(f"[dry-run] 담당자 : {config.describe_publisher(publisher)} "
+                  f"[{owner_role}] {publisher.get('email', '')} {publisher.get('phone', '')}")
         for rel_path, _abspath, ctype in pages:
             print(f"  - {rel_path} ({ctype})")
         for rel_path, _abspath, ctype in json_pages:
@@ -114,6 +134,12 @@ def publish(store, project_root, wiki_dir, system_key, component_key, component_
     store.upsert_component(system_key, component_key, component_type,
                            display_name=component_key, repo_root=os.path.abspath(project_root), stack=stack)
 
+    person_id = None
+    if publisher:
+        person_id, author, person_created = register_publisher(
+            store, system_key, component_key, publisher, owner_role, set_as_system_owner)
+        counts["person_created"] = person_created
+
     seen = set()
     for rel_path, abspath, content_type in pages:
         with open(abspath, "r", encoding="utf-8") as f:
@@ -121,7 +147,7 @@ def publish(store, project_root, wiki_dir, system_key, component_key, component_
         if content_type == "text/html":
             content = inline_local_assets(content, wiki_dir)
         result = store.save_page(system_key, component_key, rel_path, content, content_type,
-                                 author=author, change_summary=summary)
+                                 author=author, change_summary=summary, author_person_id=person_id)
         counts[result] = counts.get(result, 0) + 1
         seen.add(rel_path)
 
@@ -129,14 +155,14 @@ def publish(store, project_root, wiki_dir, system_key, component_key, component_
         with open(abspath, "r", encoding="utf-8") as f:
             content = f.read()
         result = store.save_page(system_key, component_key, rel_path, content, content_type,
-                                 author=author, change_summary=summary)
+                                 author=author, change_summary=summary, author_person_id=person_id)
         counts[result] = counts.get(result, 0) + 1
         seen.add(rel_path)
 
     for existing in store.list_pages(system_key, component_key):
         if existing["page_path"] not in seen:
             if store.mark_deleted(system_key, component_key, existing["page_path"], author=author,
-                                  reason="발행 시점 wiki 폴더에 없음"):
+                                  reason="발행 시점 wiki 폴더에 없음", author_person_id=person_id):
                 counts["deleted"] += 1
 
     index_counts = {}
@@ -145,11 +171,18 @@ def publish(store, project_root, wiki_dir, system_key, component_key, component_
         for kind, rows in extracted.items():
             index_counts[kind] = store.replace_index_rows(kind, system_key, component_key, rows)
 
-    store.write_log(system_key, component_key, "publish", counts, summary or (f"stack={stack}" if stack else ""))
+    store.write_log(system_key, component_key, "publish", counts,
+                    summary or (f"stack={stack}" if stack else ""),
+                    publisher_person_id=person_id)
 
     print(f"발행 완료: {store.describe()}")
     print(f"  시스템   : {system_key}")
     print(f"  컴포넌트 : {component_key} [{component_type}]" + (f"  stack={stack}" if stack else ""))
+    if publisher:
+        print(f"  담당자   : {config.describe_publisher(publisher)} [{owner_role}]")
+        contact = " / ".join(v for v in [publisher.get("phone"), publisher.get("email")] if v)
+        if contact:
+            print(f"  연락처   : {contact}")
     print(f"  페이지   : 신규 {counts['created']} / 변경 {counts['updated']} / "
           f"동일 {counts['unchanged']} / 삭제표시 {counts['deleted']} (총 {counts['total']})")
     if json_pages:
@@ -279,6 +312,70 @@ def print_list(store):
             print(f"    └ {c['component_key']:16} [{c['component_type']:9}] {c['page_count']:>3}페이지  {c['stack'] or '-'}")
 
 
+def print_owners(store, system_key=None):
+    rows = store.list_system_owners(system_key)
+    if not rows:
+        print("등록된 담당자가 없습니다 — 발행 시 담당자 정보를 함께 주면 자동 등록됩니다.")
+        return
+    print(f"{'시스템':14} {'컴포넌트':12} {'구분':10} {'회사':14} {'소속':12} "
+          f"{'사번':10} {'성명':8} {'연락처'}")
+    for r in rows:
+        contact = " / ".join(v for v in [r["phone"], r["email"]] if v) or "-"
+        print(f"{r['system_key']:14} {r['component_key'] or '(전체)':12} {r['owner_role']:10} "
+              f"{r['company']:14} {r['department'] or '-':12} {r['employee_no']:10} "
+              f"{r['person_name']:8} {contact}")
+
+
+def print_grants(store, system_key=None):
+    rows = store.list_grants(system_key=system_key)
+    mode = "ON(강제 중)" if store.access_control_enabled() else "OFF(설계만 반영, 아직 강제하지 않음)"
+    print(f"접근 통제: {mode}")
+    if not rows:
+        print("부여된 권한이 없습니다.")
+        return
+    print(f"{'성명':8} {'사번':10} {'범위':10} {'시스템':14} {'컴포넌트':12} {'역할':10} {'만료'}")
+    for r in rows:
+        print(f"{r['person_name'] or '-':8} {r['employee_no'] or '-':10} {r['scope_type']:10} "
+              f"{r['system_key'] or '-':14} {r['component_key'] or '-':12} {r['role_code']:10} "
+              f"{r['expires_at'] or '무기한'}")
+
+
+def handle_grant(store, args):
+    """--grant / --revoke 처리. 대상은 사번으로 찾고, 회사가 여럿이면 --grant-company 로 좁힌다."""
+    spec = args.grant or args.revoke
+    empno, _, role_code = spec.partition("=")
+    empno, role_code = empno.strip(), role_code.strip()
+    if not (empno and role_code):
+        raise store_mod.StoreError("형식 오류 — 사번=역할 형태로 주세요 (예: 20231234=reader)")
+
+    candidates = [p for p in store.list_persons(empno) if p["employee_no"] == empno]
+    if args.grant_company:
+        candidates = [p for p in candidates if p["company"] == args.grant_company]
+    if not candidates:
+        raise store_mod.StoreError(
+            f"사번 {empno} 인 담당자를 찾을 수 없습니다 — 먼저 발행하거나 담당자를 등록하세요.")
+    if len(candidates) > 1:
+        names = ", ".join(f"{p['company']}/{p['person_name']}" for p in candidates)
+        raise store_mod.StoreError(f"사번 {empno} 가 여러 회사에 있습니다 ({names}) — --grant-company 로 지정하세요.")
+
+    target = candidates[0]
+    scope = args.grant_scope
+    system_key = args.system_key or ""
+    component_key = args.component_key or ""
+    if args.grant:
+        store.grant_access(target["person_id"], role_code, scope_type=scope,
+                           system_key=system_key, component_key=component_key)
+        where = "허브 전체" if scope == "global" else f"{system_key}{'/' + component_key if component_key else ''}"
+        print(f"권한 부여: {target['person_name']}({empno}) → {role_code} @ {where}")
+    else:
+        count = store.revoke_access(target["person_id"], role_code, scope_type=scope,
+                                    system_key=system_key, component_key=component_key)
+        print(f"권한 회수: {target['person_name']}({empno}) ← {role_code} ({count}건)")
+    if not store.access_control_enabled():
+        print("참고: 접근 통제 스위치가 OFF 라 아직 열람이 차단되지는 않습니다 "
+              "(--access-control on 으로 켤 수 있습니다).")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="harness wiki 폴더를 중앙 DB로 발행 (다중 시스템 · 레이어 분리 · 버전 관리, wiki-hub 설치 불필요)")
@@ -290,8 +387,38 @@ def main():
     parser.add_argument("--component-key", help="컴포넌트 키. 미지정 시 타입과 동일")
     parser.add_argument("--component-type", choices=config.COMPONENT_TYPES,
                         help="컴포넌트 타입. 미지정 시 .env → pair_config.md → 폴더명 추정 순")
-    parser.add_argument("--author", default="wikihub-db-publish")
+    parser.add_argument("--author", default="wikihub-db-publish",
+                        help="담당자 정보를 주지 않을 때만 쓰이는 표시용 이름 (하위호환)")
     parser.add_argument("--summary", default="", help="이번 발행의 변경 요약 (버전 이력에 기록)")
+
+    person = parser.add_argument_group(
+        "담당자 정보", "발행 기록을 사람 단위로 남긴다. 미지정 시 .env 의 WIKI_PUBLISHER_* 를 쓰고, "
+                    "--save-env 를 주면 이번 값이 .env 에 저장돼 다음부터 재입력이 필요 없다.")
+    person.add_argument("--publisher-company", help="회사명 (필수)")
+    person.add_argument("--publisher-dept", help="소속")
+    person.add_argument("--publisher-empno", help="사번 (필수, 회사 안에서 유일)")
+    person.add_argument("--publisher-name", help="성명 (필수)")
+    person.add_argument("--publisher-phone", help="전화번호")
+    person.add_argument("--publisher-email", help="이메일")
+    person.add_argument("--owner-role", choices=["owner", "maintainer", "publisher"],
+                        default="publisher", help="이 시스템에서의 담당 구분 (기본 publisher)")
+    person.add_argument("--set-system-owner", action="store_true",
+                        help="이 담당자를 시스템 대표 담당자로 지정 (허브 목록에 표시됨)")
+    person.add_argument("--skip-publisher", action="store_true",
+                        help="담당자 정보 없이 발행 (권장하지 않음 — 누가 올렸는지 남지 않는다)")
+
+    acl = parser.add_argument_group("담당자·권한 조회/관리")
+    acl.add_argument("--list-owners", action="store_true", help="등록된 담당자 목록 출력")
+    acl.add_argument("--list-persons", action="store_true", help="사람 마스터 전체 목록 출력")
+    acl.add_argument("--list-grants", action="store_true", help="부여된 권한 목록 출력")
+    acl.add_argument("--grant", metavar="사번=역할",
+                     help="권한 부여 (예: --grant 20231234=reader, --system-key 와 함께)")
+    acl.add_argument("--revoke", metavar="사번=역할", help="권한 회수")
+    acl.add_argument("--grant-company", help="--grant/--revoke 대상의 회사명 (동명 사번 구분용)")
+    acl.add_argument("--grant-scope", choices=["global", "system", "component"], default="system",
+                     help="권한 범위 (기본 system)")
+    acl.add_argument("--access-control", choices=["on", "off"],
+                     help="접근 통제 스위치. on 이면 wiki-hub 조회 서버가 권한을 강제한다")
     parser.add_argument("--no-index", action="store_true", help="구조화 인덱스 추출 생략")
     parser.add_argument("--no-workspace-json", action="store_true",
                         help="_workspace/**/*.json(call_graph 등 harness index + writer_decisions 등) 발행 생략")
@@ -326,6 +453,30 @@ def main():
             if args.migrate_blobs:
                 migrate_blobs(store, args.dry_run)
                 return
+            if args.access_control:
+                store.set_access_control(args.access_control == "on")
+                print(f"접근 통제 스위치: {args.access_control.upper()} "
+                      + ("— wiki-hub 조회 서버가 권한을 강제합니다."
+                         if args.access_control == "on"
+                         else "— 권한 표는 유지되지만 강제하지 않습니다."))
+                return
+            if args.list_owners:
+                print_owners(store, args.system_key)
+                return
+            if args.list_persons:
+                rows = store.list_persons()
+                if not rows:
+                    print("등록된 사람이 없습니다.")
+                for r in rows:
+                    print(f"[{r['person_id']:>4}] {r['company']} {r['department'] or '-'} / "
+                          f"{r['person_name']}({r['employee_no']}) {r['phone'] or '-'} {r['email'] or '-'}")
+                return
+            if args.list_grants:
+                print_grants(store, args.system_key)
+                return
+            if args.grant or args.revoke:
+                handle_grant(store, args)
+                return
 
             system_key = config.resolve_system_key(project_root, env, args.system_key)
             component_key, component_type = config.detect_component(
@@ -341,12 +492,25 @@ def main():
                 pull(store, project_root, wiki_dir, system_key, component_key)
                 return
 
+            publisher = None
+            if not args.skip_publisher:
+                publisher = config.resolve_publisher(env, {
+                    "company": args.publisher_company, "department": args.publisher_dept,
+                    "employee_no": args.publisher_empno, "person_name": args.publisher_name,
+                    "phone": args.publisher_phone, "email": args.publisher_email,
+                })
+                for warning in config.validate_publisher(publisher):
+                    print(f"WARN: {warning}")
+                if args.save_env and not args.dry_run:
+                    config.save_publisher_env(project_root, publisher)
+
             publish(store, project_root, wiki_dir, system_key, component_key, component_type,
                     system_name=args.system_name or env.get("WIKI_SYSTEM_NAME"),
                     author=args.author, summary=args.summary,
                     with_index=not args.no_index, with_workspace_json=not args.no_workspace_json,
-                    dry_run=args.dry_run)
-    except store_mod.StoreError as e:
+                    dry_run=args.dry_run, publisher=publisher, owner_role=args.owner_role,
+                    set_as_system_owner=args.set_system_owner)
+    except (store_mod.StoreError, config.ConfigError) as e:
         print(f"오류: {e}", file=sys.stderr)
         sys.exit(1)
 

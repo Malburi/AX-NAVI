@@ -187,6 +187,76 @@ def detect_component(root, env, key_override=None, type_override=None):
     return (ckey or ctype), ctype
 
 
+# -- 담당자(발행자) 정보 -------------------------------------------------------
+# 발행 기록에 "누가 올렸는지"를 사람 단위로 남기기 위해 받는다. .env 에 한 번 저장해두면
+# 다음 발행부터는 다시 묻지 않는다. 회사명·사번·성명은 사람을 식별하는 키라 없으면 중단하고,
+# 소속·전화번호·이메일은 없으면 경고만 하고 진행한다(허브 화면에서 나중에 채울 수 있다).
+PUBLISHER_FIELDS = [
+    # (내부 필드명, .env 키, 표시 이름, 필수 여부)
+    ("company",     "WIKI_PUBLISHER_COMPANY", "회사명",   True),
+    ("department",  "WIKI_PUBLISHER_DEPT",    "소속",     False),
+    ("employee_no", "WIKI_PUBLISHER_EMPNO",   "사번",     True),
+    ("person_name", "WIKI_PUBLISHER_NAME",    "성명",     True),
+    ("phone",       "WIKI_PUBLISHER_PHONE",   "전화번호", False),
+    ("email",       "WIKI_PUBLISHER_EMAIL",   "이메일",   False),
+]
+
+PUBLISHER_REQUIRED = [f for f in PUBLISHER_FIELDS if f[3]]
+
+_EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+_PHONE_RE = r"^[0-9+\-()\s]{7,20}$"
+
+
+def validate_publisher(person):
+    """형식 검사. 반환: 경고 문자열 목록(치명적 누락은 여기서 예외를 던진다)."""
+    import re
+
+    missing = [label for key, _env, label, _req in PUBLISHER_REQUIRED
+               if not (person.get(key) or "").strip()]
+    if missing:
+        raise ConfigError(
+            "담당자 정보가 부족합니다 — " + ", ".join(missing) + " 은(는) 반드시 필요합니다.\n"
+            "발행 기록은 사람 단위로 남기므로 회사명·사번·성명으로 담당자를 식별합니다."
+        )
+
+    warnings = []
+    for key, _env, label, _req in PUBLISHER_FIELDS:
+        if not (person.get(key) or "").strip():
+            warnings.append(f"{label} 미입력 — 허브 화면에서 나중에 채울 수 있습니다.")
+    email = (person.get("email") or "").strip()
+    if email and not re.match(_EMAIL_RE, email):
+        raise ConfigError(f"이메일 형식이 올바르지 않습니다: {email}")
+    phone = (person.get("phone") or "").strip()
+    if phone and not re.match(_PHONE_RE, phone):
+        raise ConfigError(f"전화번호 형식이 올바르지 않습니다: {phone} (숫자·+·-·()·공백만)")
+    return warnings
+
+
+def resolve_publisher(env, overrides=None):
+    """담당자 정보를 CLI 인자 > .env 순으로 결정한다. 값 정리(공백 제거)까지 한다."""
+    overrides = overrides or {}
+    person = {}
+    for key, env_key, _label, _req in PUBLISHER_FIELDS:
+        value = overrides.get(key) or env.get(env_key) or ""
+        person[key] = str(value).strip()
+    return person
+
+
+def save_publisher_env(root, person):
+    """담당자 정보를 .env 에 저장한다(이미 값이 있으면 보존). 다음 발행부터 재입력 불필요."""
+    saved = {}
+    for key, env_key, _label, _req in PUBLISHER_FIELDS:
+        if person.get(key):
+            saved[env_key] = upsert_env_value(root, env_key, person[key])
+    return saved
+
+
+def describe_publisher(person):
+    dept = f" {person['department']}" if person.get("department") else ""
+    return (f"{person.get('company', '')}{dept} / {person.get('person_name', '')}"
+            f"({person.get('employee_no', '')})")
+
+
 def resolve_password(engine, env, root):
     """비밀번호를 얻는다. `*_PASSWORD_ENC`가 있으면 복호화해서, 없으면 평문 `*_PASSWORD`를 그대로 쓴다."""
     prefix_field = PASSWORD_FIELD[engine]
