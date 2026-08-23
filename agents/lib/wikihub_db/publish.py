@@ -392,12 +392,13 @@ def main():
     parser.add_argument("--summary", default="", help="이번 발행의 변경 요약 (버전 이력에 기록)")
 
     person = parser.add_argument_group(
-        "담당자 정보", "발행 기록을 사람 단위로 남긴다. 미지정 시 .env 의 WIKI_PUBLISHER_* 를 쓰고, "
+        "담당자 정보(선택)", "발행 기록을 사람 단위로 남기고 싶을 때만 준다 — 아무것도 주지 않으면 "
+                    "담당자 없이 그대로 발행한다. 미지정 시 .env 의 WIKI_PUBLISHER_* 를 쓰고, "
                     "--save-env 를 주면 이번 값이 .env 에 저장돼 다음부터 재입력이 필요 없다.")
-    person.add_argument("--publisher-company", help="회사명 (필수)")
+    person.add_argument("--publisher-company", help="회사명 (담당자를 남길 경우 필수)")
     person.add_argument("--publisher-dept", help="소속")
-    person.add_argument("--publisher-empno", help="사번 (필수, 회사 안에서 유일)")
-    person.add_argument("--publisher-name", help="성명 (필수)")
+    person.add_argument("--publisher-empno", help="사번 (담당자를 남길 경우 필수, 회사 안에서 유일)")
+    person.add_argument("--publisher-name", help="성명 (담당자를 남길 경우 필수)")
     person.add_argument("--publisher-phone", help="전화번호")
     person.add_argument("--publisher-email", help="이메일")
     person.add_argument("--owner-role", choices=["owner", "maintainer", "publisher"],
@@ -494,15 +495,18 @@ def main():
 
             publisher = None
             if not args.skip_publisher:
-                publisher = config.resolve_publisher(env, {
+                resolved = config.resolve_publisher(env, {
                     "company": args.publisher_company, "department": args.publisher_dept,
                     "employee_no": args.publisher_empno, "person_name": args.publisher_name,
                     "phone": args.publisher_phone, "email": args.publisher_email,
                 })
-                for warning in config.validate_publisher(publisher):
-                    print(f"WARN: {warning}")
-                if args.save_env and not args.dry_run:
-                    config.save_publisher_env(project_root, publisher)
+                # 담당자 정보는 선택 — 입력이 하나도 없으면 담당자 없이 그대로 발행한다(강제하지 않음).
+                if config.has_publisher_input(resolved):
+                    for warning in config.validate_publisher(resolved):
+                        print(f"WARN: {warning}")
+                    publisher = resolved
+                    if args.save_env and not args.dry_run:
+                        config.save_publisher_env(project_root, publisher)
 
             publish(store, project_root, wiki_dir, system_key, component_key, component_type,
                     system_name=args.system_name or env.get("WIKI_SYSTEM_NAME"),
