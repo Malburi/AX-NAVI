@@ -84,7 +84,29 @@ TOP/LIMIT/FETCH FIRST)는 `.with_variant()`와 `select().limit()`으로 흡수�
 | `wikihub_pages` | 현재 본문 (시스템·컴포넌트·경로 3키, 체크섬·현재버전). `_workspace/wiki/*.md`·`*.html`과 `_workspace/**/*.json`이 같은 테이블에 저장되며, 저장된 경로 문자열이 `_workspace/`로 시작하는 쪽(위키 문서는 접두사 없이 `Home.md`처럼 wiki_dir 기준 상대경로)이 JSON 원본이다 |
 | `wikihub_page_versions` | 버전 이력 — 체크섬이 바뀔 때만 새 행 (JSON도 동일) |
 | `wikihub_api_endpoints` / `wikihub_db_objects` / `wikihub_frontend_routes` / `wikihub_external_links` | 백엔드·프론트엔드 정보를 문서와 별도로 분리한 구조화 인덱스 |
-| `wikihub_publish_log` | 발행 실행 기록 |
+| `wikihub_publish_log` | 발행 실행 기록 — 누가 실행했는지(`publisher_person_id`) 포함 |
+| `wikihub_persons` | 담당자 마스터 — 회사명·소속·사번·성명·전화번호·이메일. (회사명 + 사번)이 유일 키 |
+| `wikihub_system_owners` | 시스템·컴포넌트별 담당자 연결 — `owner`/`maintainer`/`publisher` |
+| `wikihub_roles` / `wikihub_permissions` / `wikihub_role_permissions` | 역할과 역할별 권한 (기본값 4역할 7권한이 자동으로 채워진다) |
+| `wikihub_access_grants` | 사람 × 범위(global/system/component) × 역할. 회수는 `is_active=0`으로 남긴다 |
+| `wikihub_accounts` / `wikihub_access_log` | 로그인 계정(SSO 연동 자리)과 열람·차단 감사 로그 |
+| `wikihub_schema_meta` | `schema_version`과 접근 통제 스위치 `access_control`(기본 `off`) |
+
+### 담당자와 권한을 이 시점에 넣은 이유
+
+권한을 "나중에 한꺼번에" 붙이면 그때 스키마를 다시 흔들어야 하고, 그 사이 쌓인 발행 기록에는
+사람이 연결돼 있지 않아 소급이 안 된다. 그래서 **사람 마스터와 권한 표는 지금 만들고, 강제만
+스위치로 미뤘다** — `access_control`이 `off`인 동안 열람 동작은 예전과 완전히 같다.
+
+발행자를 예전처럼 `author` 문자열로만 남기면 같은 사람이 여러 표기로 흩어져 사람 단위로 묶을
+수도, 권한을 걸 수도 없다. 사번만으로 키를 잡지 않은 것은 원청·협력사 인원이 섞이는 ITO 현장
+때문이다 — 회사가 다른 동일 사번이 한 사람으로 합쳐지는 사고를 (회사명 + 사번) 유일 제약으로 막는다.
+
+기존 표에 붙은 컬럼은 셋뿐이고 전부 NULL 허용이라 기존 행에 영향이 없다
+(`systems.owner_person_id`, `page_versions.author_person_id`, `publish_log.publisher_person_id`).
+접속 시 `store.ensure_schema()`가 빠진 컬럼만 골라 ALTER 로 채운다 — 이미 운영 중인 DB도
+스크립트를 손으로 돌리지 않고 그대로 올라간다. DDL을 미리 검토받아야 하는 조직은
+[`sql/`](../sql/README.md)의 엔진별 스크립트를 쓴다(자동 생성 결과와 대조 검증됨).
 
 버전은 체크섬이 바뀔 때만 늘어난다. 삭제는 표시만 하고 본문·이력은 남긴다. 되돌리기는
 과거 버전을 새 버전으로 추가하는 방식이라 이력이 줄지 않는다(되돌리기·비교 화면은

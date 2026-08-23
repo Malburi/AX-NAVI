@@ -462,6 +462,19 @@ Claude는 HOLD/STOP 상황에서도 자동 수정을 하지 않습니다. **판�
 
 ---
 
+## 🖥️ 발표·보고 자료
+
+설치부터 분석·활용·중앙 위키 발행까지 전 과정을 한 파일로 정리한 슬라이드가 있습니다.
+브라우저로 열면 바로 발표할 수 있고(← →로 넘김, `O` 목차, `F` 전체화면), `P`로 인쇄하면
+그대로 PDF가 됩니다. 외부 CDN·폰트를 쓰지 않아 폐쇄망에서도 열립니다.
+
+```
+total-ito-guide.html      ← 세미나·보고용 슬라이드 20장 (PPT 대체)
+skill-triggers.html       ← 스킬 트리거 체계 상세
+```
+
+---
+
 ## 🔗 참고
 
 - [neoruler001/harness-new](https://github.com/neoruler001/harness-new) — 기반 4-에이전트 파이프라인
@@ -473,3 +486,4 @@ Claude는 HOLD/STOP 상황에서도 자동 수정을 하지 않습니다. **판�
 - [`docs/pattern-profile.md`](docs/pattern-profile.md) — 구조화 패턴 프로필·선택·적합성 게이트
 - [`docs/role-map.md`](docs/role-map.md) — 17개 스킬·18개 에이전트의 책임과 중복 방지 경계
 - [`docs/harness-description.md`](docs/harness-description.md) — 규모별 비교 분석 (정확도 & 토큰 소비)
+- [`sql/README.md`](sql/README.md) — 중앙 DB 스키마·담당자/권한 설계와 엔진별 DDL 스크립트

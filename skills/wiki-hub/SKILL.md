@@ -82,7 +82,8 @@ wiki-hub-serve --root "[절대경로]" --port 8800
 | 이 테이블을 누가 쓰나 | `/index/db` |
 | 어떤 화면이 어떤 API를 부르나 | `/index/route` |
 | 외부 시스템 연동 지점 | `/index/external` |
-| 최근에 뭐가 바뀌었나 | `/changes` |
+| 최근에 뭐가 바뀌었나 | `/changes` — 누가(성명·사번) 올렸는지 함께 보인다 |
+| 이 시스템 담당자가 누구인가 | `/s/[시스템키]` 담당자 표 — 회사·소속·사번·성명·전화·이메일 |
 | 페이지 내용 보기 | `/page/[시스템]/[컴포넌트]/[경로]` (`?v=N`으로 특정 버전) |
 
 허브 화면은 외부 CDN을 쓰지 않는다(서버가 직접 렌더링) — 폐쇄망에서도 그대로 뜬다.
@@ -107,6 +108,43 @@ python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/wikihub_db/publish.py" --root "[절�
 
 > 다음 `generate-wiki`를 실행하면 harness 산출물 기준으로 다시 덮어써진다. 되돌리기는 문서 이력
   추적용이지 소스 코드 롤백이 아니다.
+
+---
+
+## Phase 3.5: 담당자와 열람 권한
+
+발행할 때 받은 담당자 정보(회사·소속·사번·성명·전화·이메일)는 `wikihub_persons`에 사람 단위로
+쌓인다. 버전 이력의 "누가"와 시스템 담당자 표가 같은 사람을 가리키므로, 장애 시 문서를
+뒤지지 않고 담당자와 연락처를 바로 얻을 수 있다.
+
+```powershell
+python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/wikihub_db/publish.py" --root "[절대경로]" --list-owners
+```
+
+열람 권한은 **표와 기본 역할까지 준비돼 있고 강제만 꺼져 있다**(`access_control=off`).
+지금은 발행된 모든 시스템을 누구나 볼 수 있고, 이는 예전과 같은 동작이다.
+
+| 역할 | 할 수 있는 일 |
+|------|-------------|
+| `reader` | 열람 · 검색 · 버전 이력 |
+| `editor` | reader + 발행 · 되돌리기 |
+| `manager` | editor + 시스템 정보 수정 · 권한 부여 |
+| `admin` | 전부 (`--grant-scope global`이면 모든 시스템) |
+
+사용자가 "특정 사람만 보게 하고 싶다"고 하면 순서를 지킨다 — **부여를 모두 끝낸 뒤 켠다.**
+먼저 켜면 권한을 못 받은 사람이 즉시 전부 차단된다.
+
+```powershell
+# 1) 부여
+publish.py --root "[절대경로]" --grant "20231234=reader" --system-key ORDER
+# 2) 확인
+publish.py --root "[절대경로]" --list-grants
+# 3) 사용자 확인을 받고 마지막에 켠다
+publish.py --root "[절대경로]" --access-control on
+```
+
+실제 차단은 이 조회 서버가 수행한다 — 서버 배포 전에는 스위치를 켜도 화면 동작이 달라지지
+않는다(데이터·판정 근거만 준비된 상태).
 
 ---
 

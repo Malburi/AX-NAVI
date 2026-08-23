@@ -21,8 +21,10 @@ DB 테이블(`wikihub_*`)에 같은 방식으로 쓰기 때문에, 나중에 wik
 | 시스템 | `wikihub_systems` 마스터에 등록. 시스템 키로 완전히 분리 |
 | 컴포넌트 | `wikihub_components` — 같은 시스템 안에서 백엔드·프론트엔드를 나눠 저장 |
 | 페이지 | `wikihub_pages` — (시스템, 컴포넌트, 경로) 단위, 체크섬이 바뀔 때만 새 버전. `_workspace/wiki/*.md`·`*.html` 뿐 아니라 `_workspace/**/*.json`(call_graph·schema·sql_usage 등 harness index + writer_decisions.json 등) 원본도 같은 테이블에 함께 발행된다 |
-| 버전 | `wikihub_page_versions` — JSON도 동일하게 버전 관리됨 |
+| 버전 | `wikihub_page_versions` — JSON도 동일하게 버전 관리됨. 각 버전이 올린 사람(`author_person_id`)을 가리킨다 |
 | 구조화 정보 | `wikihub_api_endpoints` · `wikihub_db_objects` · `wikihub_frontend_routes` · `wikihub_external_links` |
+| 담당자 | `wikihub_persons`(회사·소속·사번·성명·전화·이메일) + `wikihub_system_owners`(어느 시스템의 어떤 담당인지) |
+| 권한 | `wikihub_roles` · `wikihub_permissions` · `wikihub_role_permissions` · `wikihub_access_grants` — 표와 기본값은 지금 만들어지지만 **강제는 스위치가 켜질 때부터**(기본 off) |
 
 > **여러 인원이 한 프로젝트를 나눠 맡는 경우**: 한 사람이 harness-init을 돌려 만든
 > `_workspace/**/*.json`(분석 인덱스 원본)을 발행해두면, 다른 팀원은 harness-init을 다시
@@ -159,12 +161,58 @@ python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/wikihub_db/encrypt_password.py" --roo
 
 ---
 
+## Phase 2.5: 담당자 정보 확인
+
+발행은 **누가 올렸는지 남기고** 진행한다. 중앙 DB에 여러 시스템이 모이면 "이 위키 누가
+올린 거야?"가 곧 "이 시스템 지금 누가 맡고 있어?"가 되기 때문이다 — 장애 시 연락처가
+문서 안이 아니라 DB에서 바로 나온다.
+
+`.env`에 `WIKI_PUBLISHER_*`가 이미 있으면 **다시 묻지 않는다.** 확인만 알린다.
+
+```
+담당자: 한빛에스아이 금융서비스1팀 / 김유지(20231234)  (기존 설정 재사용)
+```
+
+없으면 한 번에 묻는다. 여섯 항목을 따로따로 캐묻지 말고 아래 형식으로 한 번에 받는다.
+
+```
+이 위키를 발행하는 담당자 정보를 알려주세요. 중앙 DB에 발행 이력으로 남습니다.
+
+  회사명   :
+  소속     :
+  사번     :
+  성명     :
+  전화번호 :
+  이메일   :
+
+한 줄로 주셔도 됩니다 — 예) 한빛에스아이 / 금융서비스1팀 / 20231234 / 김유지 / 010-1234-5678 / yujin.kim@hanbit.co.kr
+```
+
+| 항목 | 없으면 |
+|------|-------|
+| 회사명 · 사번 · 성명 | **발행 중단.** 사람을 식별하는 키다 (사번은 회사 안에서만 유일하면 된다 — 협력사 인원이 섞여도 회사명으로 구분된다) |
+| 소속 · 전화번호 · 이메일 | 경고 후 진행. 허브 화면에서 나중에 채울 수 있다 |
+
+`--save-env`를 함께 주면 이번에 받은 값이 `.env`에 저장돼 다음 발행부터는 질문이 사라진다.
+`.env`는 git에 커밋하지 않으므로 개인 정보가 저장소로 새지 않는다.
+
+담당 구분(`--owner-role`)은 기본 `publisher`(발행만 하는 사람)다. 사용자가 "내가 이 시스템
+담당이야"라고 밝히면 `--owner-role owner --set-system-owner`를 붙여 시스템 대표 담당자로
+등록한다 — 허브 시스템 목록에 이 사람이 보인다.
+
+> 담당자 정보 없이 진행해야 하는 예외 상황(자동화된 CI 발행 등)에서만 `--skip-publisher`를
+> 쓴다. 이 경우 "누가 올렸는지"가 남지 않으므로 먼저 사용자에게 확인받는다.
+
+---
+
 ## Phase 3: 발행 실행
 
 ```powershell
 python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/wikihub_db/publish.py" --root "[절대경로]" `
   --system-key "[시스템키]" --system-name "[표시이름]" `
   --component-type [backend|frontend|...] --component-key "[컴포넌트키]" `
+  --publisher-company "[회사명]" --publisher-dept "[소속]" --publisher-empno "[사번]" `
+  --publisher-name "[성명]" --publisher-phone "[전화번호]" --publisher-email "[이메일]" `
   --summary "[이번 변경 요약]" --save-env
 ```
 
@@ -179,9 +227,26 @@ python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/wikihub_db/publish.py" --root "[절�
 | `--no-workspace-json` | `_workspace/**/*.json` 원본 발행을 건너뜀 (위키 문서만 발행) |
 | `--pull` | 반대 방향. 위키 문서는 `_workspace/wiki/`로, `_workspace/`로 시작하는 페이지(워크스페이스 JSON)는 프로젝트 루트 기준 **원래 경로**로 복원 |
 | `--list` | 등록된 시스템·컴포넌트 확인 |
+| `--list-owners` | 시스템별 담당자와 연락처 확인 |
 | `--migrate-v1` | 예전 harness의 단일 테이블(`harness_wiki_pages`) 데이터를 새 스키마로 이관 |
 
 기본값은 발행(둘 다 포함) — 대부분은 옵션 없이 그대로 실행하면 된다.
+
+### 권한 관리 (준비된 기능, 아직 강제하지 않음)
+
+역할·권한 표는 이미 만들어져 있고 기본값(`admin`/`manager`/`editor`/`reader`)도 채워져 있다.
+다만 **접근 통제 스위치가 꺼져 있어 아무것도 차단하지 않는다** — 지금 열람 동작은 예전과 같다.
+사용자가 먼저 요청할 때만 아래를 안내한다.
+
+```powershell
+python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/wikihub_db/publish.py" --root "[절대경로]" `
+  --grant "20231234=reader" --system-key ORDER      # 부여 (--grant-scope global 이면 전 시스템)
+python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/wikihub_db/publish.py" --root "[절대경로]" --list-grants
+```
+
+`--access-control on`으로 켜는 것은 **되돌리기 쉬운 조작이지만 영향이 크다**(권한 없는 사람이
+즉시 못 보게 된다). 반드시 부여를 끝낸 뒤 사용자 확인을 받고 실행한다. 실제 차단은 조회
+서버(`wiki-hub-serve`)가 하므로, 서버 배포 전에는 켜도 화면 동작이 달라지지 않는다.
 
 ### 크로스 리포(pair-init) 구조일 때
 
@@ -199,6 +264,8 @@ python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/wikihub_db/publish.py" --root "[절�
 
   시스템   : ORDER (주문관리시스템)
   컴포넌트 : backend [backend]  stack=Spring Boot 2.7 / MyBatis
+  담당자   : 한빛에스아이 금융서비스1팀 / 김유지(20231234) [owner]
+  연락처   : 010-1234-5678 / yujin.kim@hanbit.co.kr
   페이지   : 신규 0 / 변경 3 / 동일 5 / 삭제표시 1 (총 8)
   워크스페이스 JSON : 6개 (위 페이지 수에 포함, 다른 팀원이 harness-init 재실행 없이 재사용 가능한 원본 index 데이터)
   인덱스   : api 4건, db 3건, route 0건, external 2건
@@ -246,6 +313,18 @@ python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/wikihub_db/publish.py" --root "[절�
 `.env`에는 평문 대신 `_ENC`(암호화된 값)만 남지만, SQLAlchemy가 실제 DB에 접속하려면
 런타임에 복호화된 평문이 메모리상에서 잠깐 쓰인다 — 이는 모든 DB 클라이언트의 기본 동작이며
 이번 개선의 범위가 아니다. `describe_url()`이 로그·화면 출력 시 비밀번호를 `***`로 가리는 것은 그대로다.
+
+### 담당자는 문자열이 아니라 사람으로 저장한다
+예전에는 발행자를 `author` 문자열로만 남겼다 — 같은 사람이 "김유지", "yujin", "kim"으로
+제각각 들어가면 나중에 사람 단위로 묶을 수도, 권한을 걸 수도 없다. 그래서 사람을
+`wikihub_persons` 마스터로 분리하고 (회사명 + 사번)을 유일 키로 삼았다. 기존 `author`
+컬럼은 표시용으로 그대로 남겨(하위호환) 사람 정보가 없던 옛 발행 기록도 계속 보인다.
+
+### 권한은 표를 먼저 만들고 강제는 나중에 켠다
+권한 기능을 "나중에 한꺼번에" 붙이면 그때 스키마를 다시 흔들어야 하고, 그 사이 쌓인 발행
+기록에는 사람이 연결돼 있지 않아 소급이 안 된다. 그래서 표·역할·기본 권한은 지금 만들되
+`wikihub_schema_meta.access_control`을 `off`로 두어 **동작은 하나도 바뀌지 않게** 했다.
+조회 서버가 배포되고 권한 부여가 끝난 뒤 스위치만 켜면 된다.
 
 ### wiki는 harness 산출물의 스냅샷
 발행된 내용은 발행 시점의 사진이다. 영향도 분석·드리프트 검증은 wiki가 아니라
