@@ -133,16 +133,16 @@
 <div class="wrap">
 
 <header class="doc">
-  <p class="eyebrow">Total ITO · 개발 참조 문서</p>
+  <p class="eyebrow">Total ITO · 개발 참조 문서 · <strong>v2.0</strong></p>
   <h1>스킬 트리거 체계 상세</h1>
-  <p class="meta">2026-08-15 체계 기준 · 플러그인 v0.29.0 · 원본 <code>docs/skill-triggers.md</code></p>
+  <p class="meta">2026-08-25 재점검 · 플러그인 v0.30.0 (에이전트 19 · 워크플로우 스킬 17) · 원본 <code>docs/skill-triggers.md</code></p>
 </header>
 
 <nav class="toc" aria-label="목차">
   <p>목차</p>
   <ol>
     <li><a href="#s1">개요</a></li>
-    <li><a href="#s2">트리거 메커니즘 — 2겹</a></li>
+    <li><a href="#s2">트리거·라우팅 메커니즘</a></li>
     <li><a href="#s3">단일 소스 구조</a></li>
     <li><a href="#s4">등록 트리거 전체 표</a></li>
     <li><a href="#s5">라우팅 설계 원칙</a></li>
@@ -171,16 +171,20 @@
 </section>
 
 <section id="s2">
-  <h2><span class="no">2</span>트리거 메커니즘 — 2겹, 둘 다 자연어 매칭</h2>
+  <h2><span class="no">2</span>트리거·라우팅 메커니즘 — 자연어 매칭 2겹 + 진입 규약 1겹</h2>
   <hr class="rule">
+  <p>스킬 선택은 여전히 <strong>자연어 매칭 2겹</strong>(2-1·2-2)으로 이뤄지고, 여기에 세션 진입 시 먼저 읽는 <strong>정적 라우팅 규약 1겹</strong>(2-3, AGENTS.md)이 더해져 "작업은 스킬 게이트를 탄다"는 기본 습관을 고정한다.</p>
 
   <h3>2-1. 스킬 frontmatter description</h3>
   <p>각 SKILL.md(플러그인 전역 — 정적 스킬 6종은 대상 프로젝트에 로컬 사본을 두지 않는다, 3절 참조)의 frontmatter <code>description</code>에 트리거 문구가 등록돼 있다. Claude가 사용자 요청을 읽고 description과 매칭되는 스킬을 선택한다.</p>
 
   <h3>2-2. 대상 프로젝트 CLAUDE.md "자동 워크플로우" 표</h3>
-  <p><code>agents/lib/claude_md.md.template</code>의 자동 워크플로우 표(상황 → 스킬 매핑)가 harness-init 시 대상 프로젝트 CLAUDE.md로 조립돼 매 세션 컨텍스트에 로드된다. description 매칭과 함께 Claude의 판단 근거가 된다.</p>
+  <p><code>agents/lib/claude_md.md.template</code>의 자동 워크플로우 표(상황 → 스킬 매핑)가 harness-init 시 대상 프로젝트 CLAUDE.md로 조립돼 매 세션 컨텍스트에 로드된다. description 매칭과 함께 Claude의 판단 근거가 된다. <span class="pill new">v0.29.0</span> 이 표·축약 호출 등 프로젝트 무관 고정 블록은 프롬프트 캐싱 접두사 일치율을 높이려고 CLAUDE.md 최상단으로 재배치됐다.</p>
 
-  <h3>2-3. 중요한 제약 — deterministic hook 아님</h3>
+  <h3>2-3. 세션 진입 규약 — <code>AGENTS.md</code> <span class="pill new">v0.29.0 신규</span></h3>
+  <p><code>agents/lib/agents.md.template</code>(프로젝트 무관 정적 텍스트, ~15줄)가 harness-init 시 <code>skills_builder.deploy_agents_md()</code>로 대상 루트 <code>AGENTS.md</code>에 <em>치환 없이</em> 그대로 배포된다. 세션 진입 시 먼저 읽는 초경량 규약으로, 그 4번째 규칙이 <strong>"작업은 스킬 게이트를 탄다 — 수정은 <code>safe-modify</code>, 신규 기능은 <code>scaffold-feature</code>, 빠른 처리는 <code>vibe</code>"</strong>를 명시한다. 자연어 매칭이 흔들려도 라우팅 기본값을 진입 시점에 못 박는 보강층이다(인덱스 통째 로드 금지·<code>query-index</code> 조회 우선·<code>verify-target</code> 로컬 검증 우선도 함께 규정 — 5절 참조).</p>
+
+  <h3>2-4. 중요한 제약 — deterministic hook 아님</h3>
   <ul>
     <li>두 메커니즘 모두 <strong>LLM 판단 기반 확률 매칭</strong>이다. 등록 문구와 정확히 일치하지 않는 표현은 스킬을 안 탈 수 있다.</li>
     <li><code>settings.json</code>의 PreToolUse/PostToolUse hooks로는 스킬 트리거를 강제할 수 없다 — <code>agents/writer.md</code>의 "금지: 의미 없는 hooks 생성" 절에 명시된 확립 원칙. hooks는 빌드 검증 결과 저장, 위험 파일 수정 차단(exit 1)에만 쓴다.</li>
@@ -290,6 +294,10 @@
     <li><strong>독립 에이전트 게이트 생략은 opt-out 명시로만.</strong> 사용자가 "알아서/그냥/바이브"라고 말했을 때만 vibe가 탄다. 다만 코드 컨벤션 확인과 최소 실행 검증은 어느 경로에서도 생략하지 않는다.</li>
     <li>safe-modify vs scaffold-feature 분기: 기존 코드 변경이면 safe-modify, 새 파일/기능 생성이면 scaffold-feature.</li>
   </ul>
+  <div class="callout">
+    <span class="tag">공통 검증 게이트 — <code>verify-target.mjs</code> <span class="pill new">v0.29.0</span></span>
+    <p>세 write 경로(safe-modify · scaffold-feature · vibe) 모두 코드 수정 후 <strong>LLM에 "검수해줘"로 되돌리지 않고</strong> 결정론적 로컬 검증을 태운다. <code>verify-target.mjs detect</code>가 매니페스트(package.json scripts · tsconfig · biome · pyproject ruff/mypy · pom/gradle · Makefile 등)에서 검증 명령을 <em>읽기만</em>(부작용 0) 하고, <code>run</code>이 그 단일 명령을 실행해 <strong>성공이면 요약만·실패면 <code>fail_lines</code>만</strong> 돌려준다(코드 전체를 LLM에 되돌리지 않는다). exit는 pass=0 / fail=2. 이전에는 "가장 작은 lint/build/test를 실행하라"는 지침만 있어 매번 LLM이 임기응변으로 명령을 골랐다.</p>
+  </div>
 </section>
 
 <section id="s6">
@@ -395,6 +403,9 @@ python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/skills_builder.py" --root &lt;더미�
 <footer class="doc">
   <p><strong>관련 이력</strong></p>
   <ul>
+    <li>2026-08-25 — <strong>문서 v2.0.</strong> 플러그인 v0.30.0(에이전트 19·스킬 17) 기준으로 재점검. 세션 진입 규약 <code>AGENTS.md</code> 층(2-3)과 세 write 경로 공통 검증 게이트 <code>verify-target.mjs</code>(5절)를 반영. 정적 스킬 6종·라우팅 기본값은 변동 없음.</li>
+    <li>2026-08-21 — 플러그인 v0.30.0. wiki-hub DB 본문 압축·checksum dedup(트리거 체계와 무관, 버전 기준선만 갱신).</li>
+    <li>2026-08-20 — 플러그인 v0.29.0. <code>verify-target.mjs</code> 로컬 검증 자동 게이트 + <code>AGENTS.md</code> 경량 진입점 신설, CLAUDE.md 고정 블록 최상단 재배치(프롬프트 캐싱).</li>
     <li>2026-08-13 — 정적 스킬 6종의 대상 프로젝트 로컬 배포(<code>agents/lib/skills/&lt;name&gt;.md.template</code> → <code>.claude/skills/&lt;name&gt;.md</code>) 완전 제거, 플러그인 전역판 단일 소스로 전환. 배포본이 전역판과 다른 축약 스텁이었고 참조하는 에이전트 파일도 배포되지 않는 죽은 참조를 갖고 있었던 것이 발견 계기.</li>
     <li>2026-08-06 — 본 문서가 다루는 트리거 확장 3종 구현 (커밋 bf82dfb vibe 신설, 43713c2 축약+범용 문구, 4a008a4 문서·버전 0.9.1).</li>
     <li>2026-07-23 — check3에 STATIC_OR_PREEXISTING_SKILLS 제외 도입 (정적 스킬 오탐 FAIL 해소).</li>

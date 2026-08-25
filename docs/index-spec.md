@@ -180,7 +180,7 @@ FROM/JOIN 절의 `ROWNUM`·`DUAL`·`SYSDATE`·`LEVEL` 같은 의사테이블은 
 
 ## sql_usage.json
 
-SQL ID ↔ 호출 위치 매핑.
+어떤 쿼리를 어디서 실행하는가.
 
 ```json
 {
@@ -216,7 +216,7 @@ SQL ID ↔ 호출 위치 매핑.
 
 ## schema.json
 
-DB 스키마 스냅샷.
+테이블·컬럼과 관계(PK/FK) 구조.
 
 ```json
 {
@@ -360,7 +360,7 @@ DB 스키마 스냅샷.
 
 ## env_branches.json
 
-환경 분기 코드 위치.
+환경(운영/개발)에 따라 분기되는 코드·설정.
 
 ```json
 {
@@ -476,7 +476,7 @@ OWASP Top 10 (2021) 카테고리별 매핑. 정적 분석 증거 기반 — 증�
 
 ## ui_flow.json
 
-화면 중심 시스템의 화면·이벤트·데이터셋·원격 호출 흐름. 현재 Nexacro XFDL/XJS를 결정적으로 추출하며, 다른 데스크톱/리치 클라이언트 어댑터도 같은 계약으로 확장한다.
+화면 이벤트와 서버 호출 흐름. 현재 Nexacro XFDL/XJS를 결정적으로 추출하며, 다른 데스크톱/리치 클라이언트 어댑터도 같은 계약으로 확장한다.
 
 ```json
 {
@@ -489,6 +489,132 @@ OWASP Top 10 (2021) 카테고리별 매핑. 정적 분석 증거 기반 — 증�
 ```
 
 `adapter_coverage.status`가 `PARTIAL`/`WARN`이거나 대상 확장자가 레지스트리에 없으면, 이 인덱스가 일부 존재해도 변경 안전성 판정은 자동으로 `HOLD`다.
+
+---
+
+## data_flow.json
+
+요청 → 로직 → DB까지 데이터 경로.
+
+```json
+{
+  "_meta": {...},
+  "chains": [
+    {
+      "id": "flow_001",
+      "endpoint_id": "POST /orders/{id}/cancel",
+      "method_chain": [
+        "com.example.OrderController.cancel",
+        "com.example.OrderService.cancel",
+        "com.example.OrderDao.updateStatus"
+      ],
+      "sql_ids": ["ORDER_LMS_U01"],
+      "tables_read": ["TBL_ORDER"],
+      "tables_written": ["TBL_ORDER"],
+      "confidence": "HIGH",
+      "note": "주문 취소 시 상태 컬럼만 갱신한다"
+    }
+  ]
+}
+```
+
+각 체인은 엔드포인트(`api_contract`) → 호출 경로(`call_graph`) → SQL(`sql_usage`) → 읽은/쓴 테이블을 조인해 결정론적으로 도출한다. 인덱서가 이미 메모리에 있는 그래프를 조인하며 LLM은 개입하지 않는다.
+
+`note`는 선택 필드다 — 인덱서는 채우지 않고, analyzer가 `_ai_patch.json`의 `set_flow_note`로 DTO/컬럼 의미·불일치를 보강한다. 없어도 정상이다.
+
+---
+
+## api_contract.json
+
+API 명세(요청·응답)와 호출처.
+
+```json
+{
+  "_meta": {...},
+  "endpoints": [
+    {
+      "id": "POST /orders/{id}/cancel",
+      "workspace": "backend",
+      "source": "local",
+      "method": "POST",
+      "path": "/orders/{id}/cancel",
+      "handler": "com.example.OrderController.cancel",
+      "framework": "spring-mvc",
+      "file": "src/main/java/com/example/OrderController.java",
+      "line": 56,
+      "request_shape": {"orderId": "Long"},
+      "response_shape": {"status": "String"},
+      "auth_required": true,
+      "origin": "deterministic-indexer",
+      "confidence": "HIGH",
+      "description": "주문을 취소한다"
+    }
+  ],
+  "consumers": [
+    {
+      "id": "cons_001",
+      "workspace": "frontend",
+      "source": "local",
+      "call_type": "axios",
+      "method": "POST",
+      "path_literal": "/orders/${id}/cancel",
+      "file": "src/api/order.ts",
+      "line": 30,
+      "function": "cancelOrder",
+      "origin": "deterministic-indexer",
+      "confidence": "HIGH"
+    }
+  ],
+  "matches": [
+    {
+      "endpoint_id": "POST /orders/{id}/cancel",
+      "consumer_id": "cons_001",
+      "match_type": "path_pattern",
+      "confidence": "HIGH",
+      "shape_match": "MATCH"
+    }
+  ],
+  "unmatched_endpoints": [],
+  "unmatched_consumers": []
+}
+```
+
+`endpoints`는 서버가 제공하는 API, `consumers`는 그 API를 호출하는 클라이언트/코드다. `matches`는 둘을 경로·shape로 연결한 결과이며, `shape_match`가 `MISMATCH`면 요청/응답 필드가 어긋난 **드리프트**다. 짝을 못 찾은 쪽은 `unmatched_endpoints`/`unmatched_consumers`에 id만 남는다.
+
+`source` 값: `local`(같은 저장소) / `external`(페어 연동된 상대 저장소, `external_repo_path` 동반). `match_type` 값: `path_pattern` / `path_literal` / `heuristic_string_match`. `shape_match` 값: `MATCH` / `MISMATCH` / `UNKNOWN`.
+
+`origin`(`deterministic-indexer` | `ai-enrichment` | `api-bridge` | `analyzer-fallback`)·`confidence`(`HIGH`/`MEDIUM`/`LOW`) 규칙은 `call_graph`와 동일하다. `description`은 선택 필드로 analyzer가 `_ai_patch.json`의 `set_endpoint_description`으로 보강한다. 이 계약의 추출·드리프트 검증·프론트 스텁 생성은 `api-bridge` 에이전트가 담당한다(상단 "생성 주체" 표 참조).
+
+---
+
+## client_index.json
+
+JS ↔ JSP 매핑 (레거시 정적 JS).
+
+```json
+{
+  "_meta": {...},
+  "type": "legacy-static-js",
+  "build_tool": null,
+  "js_count": 342,
+  "domain_structure": {"order": 28, "member": 19},
+  "sample_mappings": [
+    {
+      "js": "js/order/orderList.js",
+      "jsps": ["WEB-INF/jsp/order/orderList.jsp"],
+      "functions": ["fnSearch", "fnCancel"]
+    }
+  ],
+  "jquery_versions": ["1.8.3", "1.12.4"],
+  "ajax_contract": "$.ajax → /order/*.do, JSON 응답",
+  "naming_convention": {"function_prefix": "fn"},
+  "anti_patterns": ["전역 함수 남발", "인라인 onclick 핸들러"]
+}
+```
+
+빌드 도구 없이 JSP에 직접 로드되는 레거시 정적 JS의 구조를 담는다 — 각 JS 파일이 어느 JSP에서 쓰이고 어떤 함수를 정의하는지(`sample_mappings`), 혼재하는 jQuery 버전, AJAX 호출 관례, 네이밍·안티패턴이다.
+
+구조(`type`·`build_tool`·`js_count`·`domain_structure`·`sample_mappings`·`jquery_versions`)는 인덱서가 결정론적으로 생성한다. `ajax_contract`·`naming_convention`·`anti_patterns`는 선택 필드로, analyzer가 `_ai_patch.json`의 `set_client_index_narrative`로 보강한다(상단 "생성 주체" 표 참조).
 
 ---
 

@@ -1225,7 +1225,7 @@
           </div>
           <div class="card" data-pop style="--d:.24s">
             <h3 style="font-size:15.5px">sql_usage</h3>
-            <p style="font-size:13.5px">어떤 쿼리를 어디서 실행하는가</p>
+            <p style="font-size:13.5px">SQL ID ↔ 호출 위치</p>
           </div>
           <div class="card" data-pop style="--d:.28s">
             <h3 style="font-size:15.5px">transactions</h3>
@@ -1233,19 +1233,19 @@
           </div>
           <div class="card" data-pop style="--d:.32s">
             <h3 style="font-size:15.5px">schema</h3>
-            <p style="font-size:13.5px">테이블·컬럼과 관계(PK/FK) 구조</p>
+            <p style="font-size:13.5px">테이블·컬럼 구조</p>
           </div>
           <div class="card" data-pop style="--d:.36s">
             <h3 style="font-size:15.5px">data_flow</h3>
-            <p style="font-size:13.5px">요청 → 로직 → DB까지 데이터 경로</p>
+            <p style="font-size:13.5px">데이터가 흐르는 경로</p>
           </div>
           <div class="card" data-pop style="--d:.4s">
             <h3 style="font-size:15.5px">api_contract</h3>
-            <p style="font-size:13.5px">API 명세(요청·응답)와 호출처</p>
+            <p style="font-size:13.5px">엔드포인트와 요청·응답</p>
           </div>
           <div class="card" data-pop style="--d:.44s">
             <h3 style="font-size:15.5px">ui_flow</h3>
-            <p style="font-size:13.5px">화면 이벤트와 서버 호출 흐름</p>
+            <p style="font-size:13.5px">화면 전환과 진입점</p>
           </div>
           <div class="card" data-pop style="--d:.48s">
             <h3 style="font-size:15.5px">client_index</h3>
@@ -1257,15 +1257,11 @@
           </div>
           <div class="card" data-pop style="--d:.56s">
             <h3 style="font-size:15.5px">env_branches</h3>
-            <p style="font-size:13.5px">환경(운영/개발)에 따라 분기되는 코드·설정</p>
+            <p style="font-size:13.5px">환경별로 갈리는 코드</p>
           </div>
           <div class="card" data-pop style="--d:.6s">
             <h3 style="font-size:15.5px">dead_code</h3>
             <p style="font-size:13.5px">아무도 부르지 않는 코드</p>
-          </div>
-          <div class="card" data-pop style="--d:.64s">
-            <h3 style="font-size:15.5px">owasp_top10</h3>
-            <p style="font-size:13.5px">보안 취약점(OWASP Top10) 매핑</p>
           </div>
           <div style="grid-column:1/-1;display:flex;gap:14px;margin-top:4px">
             <div class="card amber" style="flex:1" data-r>
@@ -1894,8 +1890,8 @@
 
       <!-- ═══════════════════════ 17 팀 협업 ═══════════════════════ -->
       <section class="slide" data-sec="5" data-title="팀 협업">
-        <div class="eyebrow" data-r><b>공유·재사용</b><span class="bar"></span><span>분석 결과를 git으로 팀과 나눈다</span></div>
-        <h2 data-r style="--d:.05s">한 번 만든 시스템 지식을 <em>git으로 팀 전체가 재사용</em>합니다</h2>
+        <div class="eyebrow" data-r><b>발행</b><span class="bar"></span><span>여러 명이 한 프로젝트를 나눠 맡을 때</span></div>
+        <h2 data-r style="--d:.05s">한 번 만든 시스템 지식을 <em>팀 전체가 재사용</em>합니다</h2>
         <div class="body grid" style="grid-template-columns:1.1fr .9fr;gap:26px">
           <svg viewBox="0 0 600 330" style="width:100%">
             <defs>
@@ -1909,45 +1905,45 @@
                 <text x="110" y="50" text-anchor="middle" fill="#E2EDF7" font-size="14" font-weight="700">A 개발자</text>
                 <text x="110" y="72" text-anchor="middle" fill="#8CA9C3" font-size="12">harness-init 실행 (10~50분)</text>
                 <text x="110" y="90" text-anchor="middle" fill="#5E7C97" font-size="11"
-                  font-family="Consolas,monospace">CLAUDE.md · .claude/ 생성</text>
+                  font-family="Consolas,monospace">_workspace/index/*.json</text>
               </g>
               <path d="M110 104 V150" stroke="#A794FF" stroke-width="1.4" marker-end="url(#a9)" class="flow" data-fade
                 style="--d:.3s" />
               <text x="130" y="132" fill="#A794FF" font-size="11.5" font-family="Consolas,monospace" data-fade
-                style="--d:.35s">git push</text>
+                style="--d:.35s">발행</text>
               <g data-pop style="--d:.4s">
                 <rect x="10" y="154" width="580" height="56" rx="2" fill="#141733" stroke="#A794FF" />
-                <text x="300" y="178" text-anchor="middle" fill="#E2EDF7" font-size="14" font-weight="700">Git 저장소</text>
+                <text x="300" y="178" text-anchor="middle" fill="#E2EDF7" font-size="14" font-weight="700">중앙 DB</text>
                 <text x="300" y="198" text-anchor="middle" fill="#8CA9C3" font-size="11.5">
-                  CLAUDE.md · .claude/ (스킬·패턴·도메인 지식) 버전 관리</text>
+                  위키 문서 + _workspace/**/*.json 원본이 함께 버전 관리된다</text>
               </g>
               <path d="M420 210 V254" stroke="#5DD8A6" stroke-width="1.4" marker-end="url(#a9)" class="flow" data-fade
                 style="--d:.55s" />
               <text x="440" y="238" fill="#5DD8A6" font-size="11.5" font-family="Consolas,monospace" data-fade
-                style="--d:.6s">git pull</text>
+                style="--d:.6s">--pull</text>
               <g data-pop style="--d:.65s">
                 <rect x="320" y="258" width="270" height="66" rx="2" fill="#132C43" stroke="#5DD8A6" />
                 <text x="455" y="284" text-anchor="middle" fill="#E2EDF7" font-size="14" font-weight="700">B 개발자</text>
                 <text x="455" y="306" text-anchor="middle" fill="#8CA9C3" font-size="11.5">
-                  재분석 없이 같은 컨텍스트로 시작</text>
+                  harness-init 재실행 없이 인덱스 재사용</text>
               </g>
             </g>
           </svg>
           <div class="grid" style="gap:14px;align-content:start">
             <div class="card mint" data-r style="--d:.3s">
-              <h3>무엇을 git으로 공유하나</h3>
-              <p><code style="color:var(--mint)">CLAUDE.md</code> 와 <code style="color:var(--mint)">.claude/</code>(skills·agents·patterns)를
-                git에 커밋합니다. 팀원이 git pull 하면 그 사람의 AI도 같은 시스템 지식·컨벤션으로 시작합니다.</p>
+              <h3>토큰을 아끼는 지점</h3>
+              <p>인덱스를 만드는 비용은 한 번만 내면 됩니다. 받은 사람은 <code style="color:var(--mint)">--pull</code>로
+                원래 경로에 그대로 복원하면, 영향도 분석·안전 변경을 바로 쓸 수 있습니다.</p>
             </div>
             <div class="card amber" data-r style="--d:.38s">
-              <h3>인덱스는 로컬에서 관리합니다</h3>
-              <p>코드 관계를 담은 인덱스는 각 PC의 로컬 산출물입니다. 한 번 만들면 재분석이 필요 없고,
-                코드가 바뀌면 <b style="color:var(--amber)">"인덱스만 갱신"</b>으로 증분 반영합니다(LLM 없이 수십 초).</p>
+              <h3>받은 뒤엔 꼭 신선도를 확인하세요</h3>
+              <p><code style="color:var(--amber)">build-index --check-stale</code> 를 돌리면 됩니다. 통과하면 그대로 쓰고,
+                어긋나면 증분 인덱싱 한 번(LLM 없이 수십 초)이면 맞춰집니다.</p>
             </div>
-            <div class="card violet" data-r style="--d:.46s">
-              <h3>중앙 DB 위키는 관리용입니다</h3>
-              <p>중앙 DB 위키는 개발 재사용 경로가 아니라 <b style="color:var(--violet)">시스템 관리용</b>입니다.
-                여러 시스템의 현황·담당자·버전 이력을 한자리에서 통합 열람·관리합니다.</p>
+            <div class="card rose" data-r style="--d:.46s">
+              <h3>순서를 바꾸면 안 됩니다</h3>
+              <p>반드시 <b style="color:var(--rose)">pull → check-stale</b> 순서예요. 반대로 하면 방금 만든 로컬
+                인덱스를 오래된 DB 사본이 덮어써 버립니다.</p>
             </div>
           </div>
         </div>
@@ -2088,8 +2084,8 @@
           </div>
           <div class="card violet" data-r style="--d:.34s">
             <h3>③ 지식이 축적되는 개발 환경</h3>
-            <p>분석 결과(CLAUDE.md · .claude/)를 git으로 공유해 팀이 지속적으로 재사용하고,
-               시스템 위키·중앙 DB로는 현황·담당자·버전 이력을 관리합니다. 한 번 만든 시스템 지식이 조직의 자산으로 축적됩니다.</p>
+            <p>분석 결과를 시스템 위키와 중앙 DB로 자산화하고, 담당자·버전·변경 이력을 함께 관리합니다.
+               한 번 만든 시스템 지식을 팀과 조직이 지속적으로 재사용합니다.</p>
           </div>
           <div style="grid-column:1/-1;margin-top:10px" data-fade>
             <div class="note" style="--d:.55s;border-left-color:var(--cyan);font-size:19px;line-height:1.6;color:var(--chalk)">
@@ -2225,14 +2221,7 @@
         // 1280×720 캔버스를 뷰포트에 맞춰 축소한다 (확대는 하지 않는다 — 텍스트가 뭉개짐).
         function fit() {
           var s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-          var scale = Math.min(s, 1.35);
-          stage.style.setProperty("--scale", scale.toFixed(4));
-          // 발표 모드에서는 인라인 transform 을 직접 지정한다. 문서 모드의 layoutDoc()이
-          // 남긴 인라인 transform(scale ≤ 1)이나 CSS 변수와의 우선순위와 무관하게,
-          // 항상 처음 열었을 때와 같은 이 배율로 표시되도록 강제하기 위함이다.
-          if (!document.body.classList.contains("doc")) {
-            stage.style.transform = "scale(" + scale.toFixed(4) + ")";
-          }
+          stage.style.setProperty("--scale", Math.min(s, 1.35).toFixed(4));
         }
         window.addEventListener("resize", function () { fit(); fitBody(slides[cur]); });
         fit();
@@ -2296,10 +2285,6 @@
             layoutDoc();
             btn.textContent = "발표 모드로 보기";
           } else {
-            // 문서 모드의 layoutDoc()이 stage 에 인라인 transform 을 남겨 두면
-            // CSS 의 transform:scale(var(--scale)) 를 덮어써 발표 모드가 작게 나온다.
-            // 인라인 값을 지워 처음 열었을 때와 동일한 --scale 기준으로 되돌린다.
-            stage.style.transform = "";
             stage.style.marginBottom = "";
             fit();
             fitBody(slides[cur]);
