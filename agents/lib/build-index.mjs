@@ -35,7 +35,7 @@ import {
 } from "./adapters/registry.mjs";
 import { extractNexacro } from "./adapters/nexacro.mjs";
 
-export const INDEXER_VERSION = "1.8.0";
+export const INDEXER_VERSION = "1.9.0"; // 1.9.0: 인라인 SQL 리터럴 토크나이저 교체 + enclosingMethod usage + 페이지 기반 시드 — 기존 인덱스가 --check-stale에서 stale 판정되어 재인덱싱되도록 상향
 
 /* AI edge patch에서 허용하는 관계 종류. analyzer는 노드를 새로 만들 수 없고 기존 노드 사이의 관계만 보강한다. */
 const AI_PATCH_EDGE_TYPES = new Set(["call", "inject", "inherit", "reflect"]);
@@ -519,6 +519,36 @@ function stripComments(text, ext) {
     } else output += c;
   }
   return output;
+}
+
+/*
+ * 문자열 리터럴을 문자 단위로 정확히 토큰화한다(정규식 전역 매칭 대신). extractSql의 rawSql
+ * 폴백이 예전에 정규식(`"..."{8,1000}`)으로 짝을 지었는데, 8자 미만 짧은 문자열(`""`,
+ * `Session["ID"]`의 `"ID"` 등)을 건너뛰다가 서로 다른 문자열의 여는/닫는 따옴표를 잘못
+ * 짝지어 그 사이의 실제 코드를 "문자열"로 오인하고 정작 그 안에 있는 진짜 SQL 리터럴은
+ * 통째로 삼켜버렸다(2026-08-27 발견 — MyBatis/JPA 매퍼 없이 인라인 SQL 문자열만 쓰는
+ * .NET ADO.NET류 프로젝트에서 sql_usage.json이 항상 0건으로 남는 원인이었다). 주석이 섞이면
+ * 안에 있는 따옴표가 또 같은 오정렬을 일으키므로, 호출부는 stripComments()로 주석을 먼저
+ * 비운 텍스트(clean)를 넘겨야 한다 — 원본 text를 그대로 넘기면 이 함수도 같은 문제를 겪는다.
+ */
+function extractStringLiterals(text) {
+  const literals = [];
+  let state = "code";
+  let quote = "";
+  let start = -1;
+  let buf = "";
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i];
+    const n = text[i + 1];
+    if (state === "string") {
+      if (c === "\\") { buf += c + (n || ""); i += 1; continue; }
+      if (c === quote) { literals.push({ content: buf, start, end: i + 1 }); state = "code"; continue; }
+      buf += c;
+    } else if (c === "\"" || c === "'" || c === "`") {
+      quote = c; state = "string"; start = i; buf = "";
+    }
+  }
+  return literals;
 }
 
 function matchingBrace(text, open) {
@@ -1024,6 +1054,21 @@ function nextMethod(methods, line) {
   return sorted[high];
 }
 
+/*
+ * offset을 포함하는(start <= offset < end) 메서드 중 가장 안쪽(start가 가장 큰) 것을 찾는다.
+ * nextMethod가 "offset 이후 첫 메서드"라면 이건 "offset을 감싸는 메서드"다 — 방향이 반대다.
+ * 인라인 SQL 문자열은 메서드 본문 안에 있으므로, 그 SQL을 실제로 실행하는 메서드를 이걸로
+ * 찾아야 data_flow가 endpoint→method→SQL 체인을 연결할 수 있다(2026-08-27 추가). 애노테이션
+ * (@Query 등)은 메서드 선언 위에 붙어 본문 밖이라 여기 해당하지 않고 nextMethod를 쓴다.
+ */
+function enclosingMethod(methods, offset) {
+  let best = null;
+  for (const m of methods) {
+    if (m.start <= offset && offset < m.end && (!best || m.start > best.start)) best = m;
+  }
+  return best;
+}
+
 function extractApi(text, clean, rel, workspace, methods, classes = []) {
   const atLine = lineIndex(text);
   const endpoints = [];
@@ -1241,7 +1286,7 @@ function sqlStatementType(statement) {
  */
 const SQL_ID_LITERAL_RE = /["']([A-Z][A-Z0-9]*(?:_[A-Z0-9]+){2,})["']/g;
 
-function extractSql(text, rel, methods) {
+function extractSql(text, clean, rel, methods) {
   const atLine = lineIndex(text);
   const sqls = [];
   const usages = [];
@@ -1285,20 +1330,27 @@ function extractSql(text, rel, methods) {
     const id = `${rel}:${atLine(match.index)}`;
     sqls.push({ id, file: rel, line: atLine(match.index), type, tables: [...new Set(sqlTables(match[3]))], text_preview: match[3].replace(/\s+/g, " ").slice(0, 240), origin: "deterministic-indexer", confidence: "MEDIUM" });
     relations.push(...extractSqlRelations(match[3], { sql_id: id, file: rel, line: atLine(match.index) }));
+    /* @Query는 메서드 선언 위에 붙으므로 그 메서드(nextMethod)를 SQL 실행 주체로 잇는다. */
+    const decorated = nextMethod(methods, atLine(match.index));
+    if (decorated) usages.push({ sql_id: id, file: rel, line: atLine(match.index), method: decorated.id, evidence: "SQL 애노테이션이 데코레이트한 메서드", origin: "deterministic-indexer", confidence: "MEDIUM" });
   }
-  const rawSql = /"((?:\\.|[^"\\]){8,1000})"|'((?:\\.|[^'\\]){8,1000})'|`((?:\\.|[^`\\]){8,1000})`/g;
-  for (const match of text.matchAll(rawSql)) {
-    const statement = match[1] ?? match[2] ?? match[3] ?? "";
-    const normalized = statement.replace(/\\(?:r|n|t)/g, " ").replace(/\s+/g, " ").trim();
+  for (const lit of extractStringLiterals(clean)) {
+    if (lit.content.length < 8 || lit.content.length > 1000) continue;
+    const normalized = lit.content.replace(/\\(?:r|n|t)/g, " ").replace(/\s+/g, " ").trim();
     const type = normalized.match(/^select\s+[\s\S]+?\s+from\s+[\w$`"[\].]+(?:\s|$)/i) ? "select"
       : normalized.match(/^insert\s+into\s+[\w$`"[\].]+(?:\s|\()/i) ? "insert"
       : normalized.match(/^update\s+[\w$`"[\].]+\s+set\s+/i) ? "update"
       : normalized.match(/^delete\s+from\s+[\w$`"[\].]+(?:\s|$)/i) ? "delete"
       : null;
     if (!type) continue;
-    const id = `${rel}:${atLine(match.index)}:raw`;
-    sqls.push({ id, file: rel, line: atLine(match.index), type, tables: [...new Set(sqlTables(statement))], text_preview: normalized.slice(0, 240), origin: "deterministic-indexer", confidence: "MEDIUM" });
-    relations.push(...extractSqlRelations(statement, { sql_id: id, file: rel, line: atLine(match.index) }));
+    const id = `${rel}:${atLine(lit.start)}:raw`;
+    sqls.push({ id, file: rel, line: atLine(lit.start), type, tables: [...new Set(sqlTables(lit.content))], text_preview: normalized.slice(0, 240), origin: "deterministic-indexer", confidence: "MEDIUM" });
+    relations.push(...extractSqlRelations(lit.content, { sql_id: id, file: rel, line: atLine(lit.start) }));
+    /* 인라인 raw SQL은 메서드 본문 안에 있으므로 그 SQL을 실행하는 메서드(enclosingMethod)를
+     * usage로 잇는다 — MyBatis/JPA 없이 ADO.NET/JDBC로 SQL을 직접 쓰는 프로젝트에서 data_flow가
+     * endpoint→method→테이블 체인을 만들 수 있게 하는 연결고리다(2026-08-27 추가). */
+    const owner = enclosingMethod(methods, lit.start);
+    if (owner) usages.push({ sql_id: id, file: rel, line: atLine(lit.start), method: owner.id, evidence: "메서드 본문 내 인라인 SQL 리터럴", origin: "deterministic-indexer", confidence: "MEDIUM" });
   }
   const usage = /\b(?:selectOne|selectList|insert|update|delete|queryForObject|queryForList)\s*\(\s*["']([^"']+)["']/g;
   for (const match of text.matchAll(usage)) usages.push({ sql_id: match[1], file: rel, line: atLine(match.index), method: nextMethod(methods, atLine(match.index))?.id || "unknown", origin: "deterministic-indexer", confidence: "HIGH" });
@@ -1612,7 +1664,7 @@ function analyzeFile(file, root, config) {
     endpoints: api.endpoints,
     consumers: [...api.consumers, ...nexacro.consumers],
     uiFlow: nexacro.uiFlow,
-    ...extractSql(text, file.rel, symbolFacts.methods),
+    ...extractSql(text, clean, file.rel, symbolFacts.methods),
     boundaries: extractTransactions(text, clean, file.rel, workspace, symbolFacts.methods),
     communications: extractExternalIo(text, clean, file.rel, workspace, symbolFacts.methods),
     env: extractEnv(text, clean, file.rel, workspace),
@@ -2209,12 +2261,18 @@ function deriveDataFlow(endpoints, edges, sqls, usages, nodes, beanClassById) {
   }
   const methodIds = new Set(nodes.filter((item) => item.type === "method").map((item) => item.id));
   const methodsByClass = new Map();
+  const methodsByFile = new Map();
   for (const node of nodes) {
     if (node.type !== "method") continue;
     const classId = node.id.split(".").slice(0, -1).join(".");
     const list = methodsByClass.get(classId) || [];
     list.push(node.id);
     methodsByClass.set(classId, list);
+    if (node.file) {
+      const flist = methodsByFile.get(node.file) || [];
+      flist.push(node.id);
+      methodsByFile.set(node.file, flist);
+    }
   }
   const seedsFor = (endpoint) => {
     if (endpoint.dispatch_bean && beanClassById.has(endpoint.dispatch_bean)) {
@@ -2222,6 +2280,18 @@ function deriveDataFlow(endpoints, edges, sqls, usages, nodes, beanClassById) {
       if (methods?.length) return { ids: methods, confidence: "LOW" };
     }
     if (endpoint.handler && methodIds.has(endpoint.handler)) return { ids: [endpoint.handler], confidence: "MEDIUM" };
+    /*
+     * 페이지 기반 프레임워크(ASP.NET WebForms .aspx, Classic ASP, JSP)는 handler가 메서드가
+     * 아니라 페이지 파일이라 위 두 경로가 모두 빗나간다. 실제 로직은 코드비하인드
+     * (X.aspx.cs/.vb)나 페이지 자체 스크립트에 있으므로, 엔드포인트 파일과 그 코드비하인드
+     * 파일에 정의된 메서드 전부를 시드로 삼는다 — 어떤 메서드가 실제 실행될지는 요청
+     * 파라미터로 갈리므로 "이 페이지가 건드릴 수 있는 전체 테이블"로 과대추정한다(LOW).
+     */
+    if (endpoint.file) {
+      const codeBehind = [endpoint.file, `${endpoint.file}.cs`, `${endpoint.file}.vb`];
+      const ids = [...new Set(codeBehind.flatMap((f) => methodsByFile.get(f) || []))];
+      if (ids.length) return { ids, confidence: "LOW" };
+    }
     return null;
   };
   const chains = [];
