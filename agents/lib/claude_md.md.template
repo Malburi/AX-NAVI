@@ -16,12 +16,10 @@
 | **컨벤션 따라 신규 기능 생성** | scaffold-feature |
 | **범용 개발 요청 ("개발해줘", "구현해줘", "코드 짜줘") — 컨벤션 기반** | scaffold-feature |
 | **알아서/바이브 ("알아서 해줘", "그냥 해줘") — 영향·안전 에이전트 생략, 패턴·최소 검증 유지** | vibe |
-| **마이그레이션 계획** | plan-migration |
-| **SQL 영향도/리뷰** | review-sql |
-| **전체 스택 기능 생성 (pair 연동 시)** | cross-repo-scaffold |
+{{PLAN_MIGRATION_ROW}}{{REVIEW_SQL_ROW}}| **전체 스택 기능 생성 (pair 연동 시)** | cross-repo-scaffold |
 | **기존 기능 개선/수정 양쪽 저장소 반영 (pair 연동 시)** | cross-repo-modify |
 
-축약 호출: `영향도 [대상]` `안전수정 [내용]` `스캐폴드 [기능명]` `마이그 [현재 → 목표]` `SQL리뷰 [쿼리·SQL ID]`
+축약 호출: `영향도 [대상]` `안전수정 [내용]` `스캐폴드 [기능명]` {{MIGRATION_ALIAS}}{{SQL_ALIAS}}
 짧은 별칭(플러그인 전역, 모든 프로젝트 공통): `/modify` `/impact` `/scaffold` `/find` `/flow` `/sql` `/wiki`
 
 ## 작업 프로토콜 (인덱스 우선)
@@ -59,4 +57,4 @@
 ## 변경 이력
 | 날짜 | 변경 내용 | 대상 | 사유 |
 |------|----------|------|------|
-| {{GENERATION_DATE}} | 초기 구성 (analyzer 출력 기반) | 전체 | harness-fin v1 적용 |
+{{CHANGELOG_ROWS}}

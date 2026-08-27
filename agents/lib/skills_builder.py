@@ -306,10 +306,26 @@ def build_partner_section(root):
     )
 
 
-def deploy_claude_md(root):
+def _extract_prior_changelog_rows(existing_claude_md_text):
+    """기존 CLAUDE.md의 '## 변경 이력' 표 데이터 행을 그대로 추출한다.
+    섹션이 없거나 데이터 행이 없으면 빈 문자열(보존할 게 없음)을 반환한다."""
+    m = re.search(r"## 변경 이력\s*\n\|[^\n]*\n\|[-:| ]+\n((?:\|.*(?:\n|$))*)", existing_claude_md_text)
+    if not m:
+        return ""
+    return m.group(1).rstrip("\n")
+
+
+def deploy_claude_md(root, decisions=None):
     """writer가 낸 _workspace/claude_md_fields.json(소수 필드) + claude_md.md.template(고정 골격)를
     조립해 CLAUDE.md를 만든다. 워크플로우 표·변경이력 헤더처럼 프로젝트 무관 고정 텍스트를
-    writer가 매번 재작성하던 부분을 없앤 것 — 서술형 필드 값 자체는 여전히 writer(LLM)가 채운다."""
+    writer가 매번 재작성하던 부분을 없앤 것 — 서술형 필드 값 자체는 여전히 writer(LLM)가 채운다.
+
+    두 가지는 매 실행(특히 재초기화)마다 덮어쓰지 않는다:
+    1. 변경 이력 표 — 기존 CLAUDE.md가 있으면 그 데이터 행을 그대로 보존하고 이번 실행 행만 추가한다.
+       (2026-08-27 발견: 재초기화 시 매번 1행으로 리셋되어 과거 이력이 소실되는 결함 수정)
+    2. plan-migration/review-sql 워크플로우 표 행 — decisions(writer_decisions.json)의
+       CONDITIONAL_SKILLS 판단과 다르게 항상 표시되면 산출물-근거 문서 불일치로 검증에서
+       FAIL 처리된다(2026-08-27 발견). decision_for()가 False면 해당 행 자체를 생략한다."""
     fields_path = os.path.join(root, "_workspace", "claude_md_fields.json")
     if not os.path.isfile(fields_path):
         print(f"WARN: {fields_path} 없음 — CLAUDE.md 스킵 (writer가 claude_md_fields.json을 먼저 생성해야 함)", file=sys.stderr)
@@ -326,6 +342,24 @@ def deploy_claude_md(root):
         template = f.read()
 
     project_name = fields.get("project_name") or os.path.basename(os.path.normpath(root)) or "프로젝트"
+    generation_date = datetime.now().strftime("%Y-%m-%d")
+
+    plan_migration_applicable = decision_for("plan-migration", decisions)
+    review_sql_applicable = decision_for("review-sql", decisions)
+    plan_migration_row = "| **마이그레이션 계획** | plan-migration |\n" if plan_migration_applicable else ""
+    review_sql_row = "| **SQL 영향도/리뷰** | review-sql |\n" if review_sql_applicable else ""
+    migration_alias = "`마이그 [현재 → 목표]` " if plan_migration_applicable else ""
+    sql_alias = "`SQL리뷰 [쿼리·SQL ID]`" if review_sql_applicable else ""
+
+    existing_path = os.path.join(root, "CLAUDE.md")
+    prior_rows = ""
+    if os.path.isfile(existing_path):
+        with open(existing_path, "r", encoding="utf-8-sig") as f:
+            prior_rows = _extract_prior_changelog_rows(f.read())
+    if prior_rows:
+        changelog_rows = prior_rows + "\n" + f"| {generation_date} | 하네스 재초기화 (analyzer 재분석 반영) | 전체 | harness-init 재실행 |\n"
+    else:
+        changelog_rows = f"| {generation_date} | 초기 구성 (analyzer 출력 기반) | 전체 | harness-fin v1 적용 |\n"
 
     content = (
         template
@@ -337,7 +371,12 @@ def deploy_claude_md(root):
         .replace("{{BUILD_RUN}}", fields.get("build_run", ""))
         .replace("{{CAUTIONS}}", fields.get("cautions", ""))
         .replace("{{PARTNER_SECTION}}", build_partner_section(root))
-        .replace("{{GENERATION_DATE}}", datetime.now().strftime("%Y-%m-%d"))
+        .replace("{{GENERATION_DATE}}", generation_date)
+        .replace("{{PLAN_MIGRATION_ROW}}", plan_migration_row)
+        .replace("{{REVIEW_SQL_ROW}}", review_sql_row)
+        .replace("{{MIGRATION_ALIAS}}", migration_alias)
+        .replace("{{SQL_ALIAS}}", sql_alias)
+        .replace("{{CHANGELOG_ROWS}}", changelog_rows)
     )
 
     with open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8") as f:
@@ -538,7 +577,7 @@ def main():
     if deploy_domain_expert(args.root):
         print("배포 완료: domain-expert.md (analyzer_report 복사)")
 
-    if deploy_claude_md(args.root):
+    if deploy_claude_md(args.root, decisions):
         print("배포 완료: CLAUDE.md (claude_md_fields.json + 템플릿 조립)")
 
     if deploy_agents_md(args.root):
