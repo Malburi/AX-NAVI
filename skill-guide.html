@@ -1,0 +1,507 @@
+<title>total-ito 스킬 사용 가이드 &amp; 약어 정리</title>
+<style>
+  :root {
+    --ink: #1f2a30;
+    --ink-soft: #4b5a61;
+    --paper: #fbfaf7;
+    --panel: #f2f0ea;
+    --line: #dcd8ce;
+    --accent: #1f5f6b;
+    --accent-soft: #e3edee;
+    --warn-bg: #fdf3e0;
+    --warn-line: #d9a441;
+    --warn-ink: #7a5410;
+    --code-bg: #24313a;
+    --code-ink: #dce7ea;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Pretendard", "Pretendard Variable", -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; padding: 48px 28px 96px; }
+
+  header.doc { border-bottom: 3px solid var(--ink); padding-bottom: 28px; margin-bottom: 40px; }
+  .eyebrow {
+    font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(28px, 4.5vw, 40px); line-height: 1.25; margin: 0 0 14px;
+    font-weight: 800; letter-spacing: -.01em; text-wrap: balance;
+  }
+  .meta { color: var(--ink-soft); font-size: 14px; margin: 0; }
+  .meta code { font-size: 13px; }
+
+  nav.toc {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 20px 24px; margin-bottom: 48px;
+  }
+  nav.toc p { margin: 0 0 8px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--ink-soft); }
+  nav.toc ol { margin: 0; padding-left: 22px; columns: 2; column-gap: 40px; font-size: 15px; }
+  nav.toc li { margin: 3px 0; break-inside: avoid; }
+  nav.toc a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+  nav.toc a:hover, nav.toc a:focus-visible { color: var(--accent); border-bottom-color: var(--accent); }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+
+  section { margin-bottom: 56px; }
+  h2 {
+    font-size: 23px; font-weight: 800; letter-spacing: -.01em; margin: 0 0 6px;
+    display: flex; align-items: baseline; gap: 12px; text-wrap: balance;
+  }
+  h2 .no {
+    font-family: Consolas, "JetBrains Mono", monospace; font-size: 15px;
+    color: var(--accent); font-weight: 700; flex: none;
+  }
+  h2 + .lede { margin-top: 2px; }
+  .rule { height: 2px; background: var(--line); border: 0; margin: 10px 0 20px; }
+  h3 { font-size: 17px; font-weight: 700; margin: 28px 0 8px; }
+  p { margin: 0 0 14px; max-width: 74ch; }
+  .lede { color: var(--ink-soft); }
+  ul, ol.body-list { margin: 0 0 14px; padding-left: 24px; max-width: 74ch; }
+  li { margin: 4px 0; }
+  strong { font-weight: 700; }
+
+  code {
+    font-family: Consolas, "JetBrains Mono", "D2Coding", monospace;
+    font-size: .88em; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 6px;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); border-radius: 6px;
+    padding: 18px 20px; overflow-x: auto; margin: 0 0 16px;
+    font-size: 13.5px; line-height: 1.65;
+  }
+  pre code { background: none; border: 0; padding: 0; color: inherit; font-size: inherit; }
+  pre .cm { color: #8fa8b3; }
+  pre .hl { color: #ffd479; }
+
+  .tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; background: #fff; }
+  th {
+    text-align: left; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-soft); background: var(--panel);
+    padding: 10px 14px; border-bottom: 2px solid var(--line); white-space: nowrap;
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td code { white-space: nowrap; }
+  .num { font-family: Consolas, monospace; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 700; }
+
+  .pill {
+    display: inline-block; font-size: 11.5px; font-weight: 700; letter-spacing: .06em;
+    padding: 2px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .pill.new { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-line); }
+  .pill.local { background: #e8efe6; color: #3c6b3c; border: 1px solid #8ab08a; }
+
+  .callout {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 6px 6px 0; padding: 14px 18px; margin: 0 0 16px; max-width: 80ch;
+  }
+  .callout.warn { border-left-color: var(--warn-line); background: var(--warn-bg); }
+  .callout p { margin: 0 0 6px; } .callout p:last-child { margin: 0; }
+  .callout .tag { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .callout .tag { color: var(--accent); }
+  .callout.warn .tag { color: var(--warn-ink); }
+
+  .route { list-style: none; padding: 0; margin: 0 0 16px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .route li { display: grid; grid-template-columns: minmax(210px, 1.1fr) auto minmax(160px, .8fr) 1.3fr; gap: 14px; align-items: center; padding: 12px 16px; margin: 0; background: #fff; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+  .route li:last-child { border-bottom: 0; }
+  .route .arrow { color: var(--ink-soft); font-family: Consolas, monospace; }
+  .route .dest { font-family: Consolas, monospace; font-weight: 700; color: var(--accent); }
+  .route .note { color: var(--ink-soft); font-size: 13.5px; }
+  .route li.bypass { background: var(--warn-bg); }
+  .route li.bypass .dest { color: var(--warn-ink); }
+  @media (max-width: 720px) {
+    .route li { grid-template-columns: 1fr; gap: 2px; }
+    .route .arrow { display: none; }
+  }
+
+  footer.doc {
+    border-top: 2px solid var(--line); margin-top: 24px; padding-top: 20px;
+    font-size: 14px; color: var(--ink-soft);
+  }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="wrap">
+
+<header class="doc">
+  <p class="eyebrow">Total ITO · 개발 참조 문서</p>
+  <h1>스킬 사용 가이드 &amp; 약어 정리</h1>
+  <p class="meta">2026-08-27 작성 · 플러그인 <code>total-ito v0.30.3</code> · 스킬 24종 = 워크플로우 17 + 짧은 별칭 7 · 자매 문서 <code>skill-triggers.html</code>(트리거 체계 상세)</p>
+</header>
+
+<nav class="toc" aria-label="목차">
+  <p>목차</p>
+  <ol>
+    <li><a href="#s1">개요 — 스킬 구성과 3가지 호출 방식</a></li>
+    <li><a href="#s2">짧은 별칭 7종 &amp; 한글 축약</a></li>
+    <li><a href="#s3">핵심 작업 스킬 8종</a></li>
+    <li><a href="#s4">하네스 구축·관리 3종</a></li>
+    <li><a href="#s5">위키 3종</a></li>
+    <li><a href="#s6">크로스리포(페어) 3종</a></li>
+    <li><a href="#s7">프로젝트별 생성 스킬 (플러그인 소속 아님)</a></li>
+    <li><a href="#s8">직접 호출 에이전트</a></li>
+    <li><a href="#s9">라우팅 설계 원칙</a></li>
+    <li><a href="#s10">표준 사용 흐름 &amp; 예시</a></li>
+  </ol>
+</nav>
+
+<section id="s1">
+  <h2><span class="no">1</span>개요 — 스킬 구성과 3가지 호출 방식</h2>
+  <hr class="rule">
+  <p>플러그인 <code>skills/</code> 폴더에는 <strong>24개 스킬</strong>이 있다. 워크플로우 스킬 17종 + 그중 자주 쓰는 7종을 짧게 부르는 별칭 7종이다. 플러그인만 설치하면 어느 프로젝트에서든 전부 활성화된다(단일 소스 구조 — 대상 프로젝트에 로컬 사본을 배포하지 않음).</p>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>분류</th><th>수</th><th>스킬</th></tr></thead>
+      <tbody>
+        <tr><td><strong>짧은 별칭</strong></td><td class="num">7</td><td><code>find</code> <code>flow</code> <code>impact</code> <code>modify</code> <code>scaffold</code> <code>sql</code> <code>wiki</code></td></tr>
+        <tr><td><strong>핵심 작업</strong></td><td class="num">8</td><td><code>analyze-impact</code> <code>safe-modify</code> <code>scaffold-feature</code> <code>vibe</code> <code>trace-logic</code> <code>find-feature</code> <code>review-sql</code> <code>plan-migration</code></td></tr>
+        <tr><td><strong>하네스 관리</strong></td><td class="num">3</td><td><code>harness-init</code> <code>harness-clean</code> <code>spec-gate</code></td></tr>
+        <tr><td><strong>위키</strong></td><td class="num">3</td><td><code>generate-wiki</code> <code>publish-wiki</code> <code>wiki-hub</code></td></tr>
+        <tr><td><strong>크로스리포(페어)</strong></td><td class="num">3</td><td><code>pair-init</code> <code>cross-repo-scaffold</code> <code>cross-repo-modify</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>호출 방식 3가지 — 전부 같은 스킬로 들어간다</h3>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>방식</th><th>예</th><th>보장성</th></tr></thead>
+      <tbody>
+        <tr><td><strong>슬래시 (전체 이름)</strong></td><td><code>/total-ito:safe-modify</code></td><td>확정 경로 — 항상 그 스킬이 실행됨</td></tr>
+        <tr><td><strong>짧은 별칭</strong></td><td><code>/modify 세션 만료 버그</code></td><td>확정 경로 — 별칭이 즉시 해당 스킬로 위임</td></tr>
+        <tr><td><strong>자연어 트리거</strong></td><td>"이거 고쳐줘", "어디서 쓰여?"</td><td>LLM 확률 매칭 — 등록 문구와 가까울수록 안정적</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout warn">
+    <span class="tag">보장이 필요하면 슬래시 또는 별칭</span>
+    <p>자연어 트리거는 hook으로 강제되는 것이 아니라 LLM 판단 기반 확률 매칭이다(<code>skill-triggers.html</code> 2절). 반드시 특정 스킬을 태우려면 <code>/modify</code>·<code>/total-ito:safe-modify</code>처럼 명시 호출한다.</p>
+  </div>
+</section>
+
+<section id="s2">
+  <h2><span class="no">2</span>짧은 별칭 7종 &amp; 한글 축약</h2>
+  <hr class="rule">
+  <p class="lede">긴 스킬명을 짧게 부르는 별칭. 별칭 스킬 자체는 얇은 위임 스텁으로, 인자를 그대로 대상 스킬에 넘긴다. Claude 기본 명령어(/init, /review 등)와 충돌하지 않게 명명됐고, 플러그인에 포함돼 있어 어느 PC에 설치해도 동일하게 동작한다.</p>
+
+  <h3>2-1. 슬래시 별칭</h3>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>별칭</th><th>위임 대상</th><th>하는 일</th></tr></thead>
+      <tbody>
+        <tr><td><code>/modify [내용]</code></td><td><code>safe-modify</code></td><td>수정: 사전 영향분석 → 적용 → 사후 안전성 평가(GO/HOLD/STOP)</td></tr>
+        <tr><td><code>/impact [대상]</code></td><td><code>analyze-impact</code></td><td>변경 대상의 직간접 영향·위험도(1~10) 분석</td></tr>
+        <tr><td><code>/scaffold [기능명]</code></td><td><code>scaffold-feature</code></td><td>프로젝트 컨벤션 기반 신규 기능 스캐폴딩</td></tr>
+        <tr><td><code>/find [기능·키워드]</code></td><td><code>find-feature</code></td><td>관련 파일·클래스·메서드·SQL 목록 탐색</td></tr>
+        <tr><td><code>/flow [기능·API·화면]</code></td><td><code>trace-logic</code></td><td>진입점부터 DB/외부 시스템까지 흐름 추적</td></tr>
+        <tr><td><code>/sql [쿼리·SQL ID·DDL]</code></td><td><code>review-sql</code></td><td>사용처·성능·보안·트랜잭션·스키마 영향 종합 리뷰</td></tr>
+        <tr><td><code>/wiki</code></td><td><code>generate-wiki</code></td><td>위키 페이지 세트 생성(call graph 시각화 포함)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <span class="tag">별칭 이름 규칙 — 왜 /trace·/logic이 아닌가</span>
+    <p>harness-init이 대상 프로젝트마다 로컬 <code>trace.md</code>·<code>find-logic.md</code> 스킬을 배포하므로, 이름 충돌을 피해 흐름 추적은 <code>/flow</code>, 위치 탐색은 <code>/find</code>로 지었다.</p>
+  </div>
+
+  <h3>2-2. 한글 축약 (자연어 매칭)</h3>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>축약 문구</th><th>스킬</th><th>사용 형식</th></tr></thead>
+      <tbody>
+        <tr><td>영향도, 임팩트</td><td><code>analyze-impact</code></td><td><code>영향도 UserService.updateUser</code></td></tr>
+        <tr><td>안전수정</td><td><code>safe-modify</code></td><td><code>안전수정 로그인 타임아웃 30초로</code></td></tr>
+        <tr><td>스캐폴드</td><td><code>scaffold-feature</code></td><td><code>스캐폴드 쿠폰 발급</code></td></tr>
+        <tr><td>마이그</td><td><code>plan-migration</code></td><td><code>마이그 iBatis → MyBatis</code></td></tr>
+        <tr><td>SQL리뷰, 쿼리리뷰</td><td><code>review-sql</code></td><td><code>SQL리뷰 selectOrderList</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="lede">한글 축약은 슬래시 별칭과 달리 자연어 매칭 경로다 — CLAUDE.md 자동 워크플로우 표와 스킬 description 양쪽에 등록돼 있어 안정적으로 매칭되지만, 확정 보장은 슬래시 쪽이다.</p>
+</section>
+
+<section id="s3">
+  <h2><span class="no">3</span>핵심 작업 스킬 8종 (일상 유지보수)</h2>
+  <hr class="rule">
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>스킬</th><th>별칭</th><th>대표 트리거</th><th>동작</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>safe-modify</code> <span class="pill new">수정 기본 경로</span></td><td><code>/modify</code></td>
+          <td>"수정해줘", "고쳐줘", "개선해줘", "버그 잡아줘", "이 패치 적용해도 돼?", "긴급 핫픽스", "GO/NO-GO?"</td>
+          <td>영향분석(impact-analyzer) → 변경 적용 → 패턴 적합성(pattern-conformance) + 로컬 검증(verify-target) + 안전성 평가(change-safety) → GO/HOLD/STOP 판정 → 재인덱싱</td>
+        </tr>
+        <tr>
+          <td><code>analyze-impact</code></td><td><code>/impact</code></td>
+          <td>"이거 수정하면 어디 영향?", "어디서 쓰이고 있어?", "이 함수 수정해도 돼?"</td>
+          <td>인덱스(call_graph·sql_usage·schema) 기반 직간접 영향 + 위험도 1~10 리포트. 수정·개발 작업의 시작점</td>
+        </tr>
+        <tr>
+          <td><code>scaffold-feature</code> <span class="pill new">개발 기본 경로</span></td><td><code>/scaffold</code></td>
+          <td>"개발해줘", "구현해줘", "코드 짜줘", "[기능명] 기능 추가", "패턴대로 만들어줘"</td>
+          <td><code>.claude/patterns/</code> 컨벤션 로드 → 보일러플레이트 + 테스트 골격 생성 → 안티패턴 대조</td>
+        </tr>
+        <tr>
+          <td><code>vibe</code> <span class="pill warn">게이트 생략</span></td><td>—</td>
+          <td>"알아서 해줘", "그냥 해줘", "바이브로", "빠르게 그냥 고쳐"</td>
+          <td>영향·안전 에이전트 생략, 패턴 선택·최소 실행 검증은 유지. DB 스키마/API 계약/트랜잭션/3+파일 변경이면 safe-modify·scaffold-feature로 자동 승격</td>
+        </tr>
+        <tr>
+          <td><code>trace-logic</code></td><td><code>/flow</code></td>
+          <td>"이 API 어떻게 처리돼?", "이 화면 저장 버튼 누르면 뭐가 실행돼?", "처리 흐름"</td>
+          <td>logic-tracer 에이전트가 진입점→DB/외부까지 추적, 인덱스 <code>trace</code> 질의 우선</td>
+        </tr>
+        <tr>
+          <td><code>find-feature</code></td><td><code>/find</code></td>
+          <td>"결제 관련 파일 어디 있어?", "찾아줘", "담당 클래스"</td>
+          <td>feature-finder 에이전트가 키워드로 파일·클래스·메서드·SQL 목록 반환</td>
+        </tr>
+        <tr>
+          <td><code>review-sql</code></td><td><code>/sql</code></td>
+          <td>"이 쿼리 성능", "N+1 확인", "인덱스 잘 쓰고 있어?", "DDL 영향 분석"</td>
+          <td>sql-reviewer 에이전트가 사용처 역추적·인젝션·트랜잭션·락·스키마 영향 종합 리뷰</td>
+        </tr>
+        <tr>
+          <td><code>plan-migration</code></td><td>—</td>
+          <td>"Spring Boot로 마이그레이션", "Oracle → PostgreSQL", "전환 계획", "리프트앤시프트"</td>
+          <td>인벤토리·매핑 테이블·단계별 계획·위험 등록부·테스트 전략·롤백 시나리오 생성. <strong>조건부 스킬</strong> — 대상 스택이 마이그레이션 후보일 때만 프로젝트 CLAUDE.md 표에 등록됨</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <span class="tag">safe-modify vs scaffold-feature vs vibe 분기</span>
+    <p><strong>기존 코드 변경</strong>이면 safe-modify, <strong>새 파일/기능 생성</strong>이면 scaffold-feature. 두 경로 다 게이트(영향분석·패턴·안전성)가 기본으로 붙는다. 게이트를 생략하는 vibe는 사용자가 "알아서/그냥/바이브"라고 <em>명시적으로</em> 말했을 때만 탄다.</p>
+  </div>
+</section>
+
+<section id="s4">
+  <h2><span class="no">4</span>하네스 구축·관리 3종</h2>
+  <hr class="rule">
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>스킬</th><th>대표 트리거</th><th>동작</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>harness-init</code></td>
+          <td>"하네스 초기화", "하네스 다시 초기화", "인덱스만 갱신해줘", "패턴 추출해줘", "스킬만 다시 생성"</td>
+          <td>프로젝트 심층 분석 오케스트레이터. 인덱싱(zero-LLM) → analyzer(opus) → writer → 조립 → pattern-extractor → validator → evaluator 파이프라인으로 CLAUDE.md·로컬 스킬·domain-expert·패턴·인덱스를 자동 생성. Tier(Full/Standard)·부분 재실행·재초기화(백업 후) 지원</td>
+        </tr>
+        <tr>
+          <td><code>harness-clean</code></td>
+          <td>"하네스 삭제", "harness 지워줘", "초기화 되돌려줘"</td>
+          <td>CLAUDE.md · .claude/skills/ · .claude/agents/ · .claude/patterns/ · _workspace/ 정리(롤백)</td>
+        </tr>
+        <tr>
+          <td><code>spec-gate</code></td>
+          <td>"요구사항 정리해줘", "작업 범위 정해줘", "뭐부터 해야 해"</td>
+          <td>작업 시작 전 소크라테스식 인터뷰(범위·목표·제약·레거시·우선순위)로 모호성 제거 후 GO 신호. harness-init 전에 독립 실행 가능</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s5">
+  <h2><span class="no">5</span>위키 3종</h2>
+  <hr class="rule">
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>스킬</th><th>별칭</th><th>대표 트리거</th><th>동작</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>generate-wiki</code></td><td><code>/wiki</code></td>
+          <td>"위키 만들어줘", "call graph 시각화"</td>
+          <td>하네스 산출물 → 정적 위키 페이지 세트(Home/domain/architecture/workflows/support-status/patterns/api-endpoints/database/external-systems/issues + call-graph.html). zero-LLM 조립</td>
+        </tr>
+        <tr>
+          <td><code>publish-wiki</code></td><td>—</td>
+          <td>"위키 발행", "중앙 DB에 올려줘"</td>
+          <td>위키 + <code>_workspace/**/*.json</code>(인덱스 원본)을 중앙 DB(MSSQL/PostgreSQL/Oracle/SQLite)에 버전 관리 발행. 담당자(사번) 기록, 체크섬 dedup, <code>--pull</code>로 팀원이 인덱스 재사용 가능</td>
+        </tr>
+        <tr>
+          <td><code>wiki-hub</code></td><td>—</td>
+          <td>"위키 허브 띄워줘", "통합 위키 보여줘", "위키 버전 비교"</td>
+          <td>여러 시스템 위키를 한 사이트에서 통합 열람·전문 검색·버전 이력/비교/복원 (조회 전용 서버)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s6">
+  <h2><span class="no">6</span>크로스리포(페어) 3종</h2>
+  <hr class="rule">
+  <p class="lede">백엔드·프론트엔드가 별도 저장소로 분리된 시스템용. <code>pair-init</code>으로 연동한 뒤 나머지 두 스킬이 활성화된다.</p>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>스킬</th><th>대표 트리거</th><th>동작</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>pair-init</code></td>
+          <td>"백엔드 프론트엔드 연결해줘", "두 프로젝트 연동", "API 계약 추출해줘", "허브형 연동"</td>
+          <td>1:1(백+프론트) 또는 1:N(백+웹+모바일+관리자) 연동. api-bridge로 API 계약 추출·정합성 검증</td>
+        </tr>
+        <tr>
+          <td><code>cross-repo-scaffold</code></td>
+          <td>"전체 스택 기능 만들어줘", "API부터 화면까지 만들어줘"</td>
+          <td>연동된 저장소 전체에 걸쳐 백엔드 API + 프론트 연동 코드를 한 번에 스캐폴딩</td>
+        </tr>
+        <tr>
+          <td><code>cross-repo-modify</code></td>
+          <td>"양쪽 다 수정해줘", "이 API 바꾸는데 프론트 영향 있으면 같이"</td>
+          <td>한쪽 수정의 영향을 파트너 저장소까지 분석해 함께 반영</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s7">
+  <h2><span class="no">7</span>프로젝트별 생성 스킬 <span class="pill local">플러그인 소속 아님</span></h2>
+  <hr class="rule">
+  <p>아래 스킬들은 플러그인 <code>skills/</code>에 없다 — <code>harness-init</code> 실행 시 writer가 <strong>대상 프로젝트의 실제 코드 기준으로 직접 작성</strong>해 그 프로젝트의 <code>.claude/skills/</code>에 배포한다. 내용(트리거 문구·예시 심볼·명령어)이 프로젝트마다 다르다.</p>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>로컬 스킬</th><th>용도</th></tr></thead>
+      <tbody>
+        <tr><td><code>trace.md</code></td><td>그 프로젝트의 요청 흐름 추적 (실제 진입점·프레임워크 기준 예시 포함)</td></tr>
+        <tr><td><code>find-logic.md</code></td><td>SQL/테이블/인터페이스 ID/에러 메시지 → 담당 코드 역탐색</td></tr>
+        <tr><td><code>scaffolder.md</code></td><td>그 프로젝트 구조 기준 신규 모듈 추가 체크리스트</td></tr>
+        <tr><td><code>cross-repo-scaffold.md</code> / <code>cross-repo-modify.md</code></td><td>pair 연동 시에만 생성 — 파트너 경로가 박힌 프로젝트 전용판</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout">
+    <span class="tag">단일 소스 원칙 (2026-08-13부터)</span>
+    <p>정적 워크플로우 스킬 6종(analyze-impact/safe-modify/scaffold-feature/vibe/plan-migration/review-sql)은 프로젝트별로 달라질 내용이 없어 <strong>플러그인 전역판만</strong> 존재한다. harness-init은 이들의 <em>이름</em>을 프로젝트 CLAUDE.md 표·ito-guide.md에 등록만 하고 로컬 파일은 배포하지 않는다. 플러그인을 업데이트하면 모든 프로젝트에 즉시 반영된다.</p>
+  </div>
+</section>
+
+<section id="s8">
+  <h2><span class="no">8</span>직접 호출 에이전트 (스킬 아님, 자연어로 호출)</h2>
+  <hr class="rule">
+  <p class="lede">스킬 파이프라인이 내부에서 부르는 에이전트가 19종 있고, 그중 사용자가 직접 부를 만한 것은 아래와 같다.</p>
+  <div class="tablebox">
+    <table>
+      <thead><tr><th>에이전트</th><th>용도</th><th>호출 예시</th></tr></thead>
+      <tbody>
+        <tr><td><code>legacy-decoder</code></td><td>레거시 코드 역공학 — 주석 없음·변수명 불분명·매크로 다수 코드의 의도를 사람이 읽을 수 있게 해석 (수정하지 않음)</td><td>"이 코드 뭐하는 거야?", "이 PL/SQL 해석해줘"</td></tr>
+        <tr><td><code>doc-syncer</code></td><td>코드 변경 후 문서(CLAUDE.md·README·API 문서·변경이력) 일관성 점검·갱신</td><td>"문서 동기화", "변경 이력 추가"</td></tr>
+        <tr><td><code>domain-expert</code></td><td>harness-init이 프로젝트마다 생성하는 도메인 지식 에이전트(분석 결과 내장)</td><td>"domain-expert에게: 외부 연동 구조 설명해줘"</td></tr>
+        <tr><td><code>test-generator</code></td><td>변경/영향 코드의 회귀 테스트 골격 생성</td><td>"영향받는 코드 테스트 만들어줘"</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="s9">
+  <h2><span class="no">9</span>라우팅 설계 원칙</h2>
+  <hr class="rule">
+  <ul class="route">
+    <li>
+      <span>"개발해줘 / 구현해줘 / 새 기능"</span>
+      <span class="arrow">→</span>
+      <span class="dest">scaffold-feature</span>
+      <span class="note">컨벤션 기반 생성 · 기본값</span>
+    </li>
+    <li>
+      <span>"수정해줘 / 고쳐줘 / 개선해줘"</span>
+      <span class="arrow">→</span>
+      <span class="dest">safe-modify</span>
+      <span class="note">게이트 포함 · 기본값</span>
+    </li>
+    <li class="bypass">
+      <span>"알아서 해줘 / 그냥 해줘 / 바이브로"</span>
+      <span class="arrow">→</span>
+      <span class="dest">vibe</span>
+      <span class="note">독립 에이전트 게이트 생략 · 명시적 opt-out</span>
+    </li>
+    <li>
+      <span><code>/modify</code> · <code>/total-ito:&lt;스킬명&gt;</code></span>
+      <span class="arrow">→</span>
+      <span class="dest">해당 스킬</span>
+      <span class="note">확정 경로 (유일한 보장 수단)</span>
+    </li>
+  </ul>
+  <ul>
+    <li><strong>기본값 = 게이트 경로.</strong> 범용 요청은 인덱스·패턴·안전성 평가를 태운다.</li>
+    <li><strong>게이트 생략은 opt-out 명시로만.</strong> 어떤 경로에서도 컨벤션 확인·최소 실행 검증(<code>verify-target.mjs</code>)은 생략하지 않는다.</li>
+    <li>수정 스킬은 완료 후 <code>build-index.mjs --mode incremental</code>로 인덱스를 갱신해 다음 작업이 최신 상태를 참조하게 한다.</li>
+  </ul>
+</section>
+
+<section id="s10">
+  <h2><span class="no">10</span>표준 사용 흐름 &amp; 예시</h2>
+  <hr class="rule">
+
+  <h3>10-1. 신규 프로젝트 셋업 → 일상 유지보수</h3>
+<pre><code><span class="cm"># 1) 최초 1회 — 하네스 구축 (인덱스·패턴·CLAUDE.md 자동 생성)</span>
+하네스 초기화                        <span class="hl">→ harness-init</span>
+
+<span class="cm"># 2) 일상 유지보수 표준 루프</span>
+/find 쿠폰 발급                      <span class="hl">→ 위치 파악</span>
+/flow 쿠폰 발급 API                  <span class="hl">→ 흐름 이해</span>
+/impact CouponService.issue          <span class="hl">→ 영향 확인</span>
+/modify 발급 한도 체크 추가          <span class="hl">→ 게이트 수정</span>
+
+<span class="cm"># 급하면 /modify 하나로도 됨 (내부에서 영향분석 수행)</span></code></pre>
+
+  <h3>10-2. 호출 예시 모음</h3>
+<pre><code><span class="cm"># 짧은 별칭 (확정 경로)</span>
+/impact UserService.updateUser
+/modify 로그인 타임아웃 30초로 변경
+/scaffold 쿠폰 발급
+/find 결제 모듈
+/flow 주문 취소
+/sql selectOrderList
+/wiki
+
+<span class="cm"># 한글 축약 (자연어 매칭)</span>
+영향도 UserService.updateUser
+안전수정 세션 만료 처리
+스캐폴드 알림 발송
+마이그 iBatis → MyBatis
+SQL리뷰 ORDER_LMS_U02
+
+<span class="cm"># 범용 문구 (게이트 경로가 기본값)</span>
+주문 취소 기능 개발해줘              <span class="hl">→ scaffold-feature</span>
+세션 만료 버그 고쳐줘                <span class="hl">→ safe-modify</span>
+
+<span class="cm"># 알아서 모드 (게이트 생략, 명시적 opt-out)</span>
+알아서 해줘 — 버튼 라벨만 바꿔
+그냥 해줘, 로그 한 줄 추가
+
+<span class="cm"># 위키 파이프라인</span>
+위키 만들어줘                        <span class="hl">→ generate-wiki</span>
+위키 발행                            <span class="hl">→ publish-wiki (중앙 DB)</span>
+위키 허브 띄워줘                     <span class="hl">→ wiki-hub (통합 조회)</span>
+
+<span class="cm"># 슬래시 전체 이름 (항상 확정)</span>
+/total-ito:harness-init
+/total-ito:safe-modify
+/total-ito:pair-init</code></pre>
+</section>
+
+<footer class="doc">
+  <p><strong>문서 정보</strong></p>
+  <ul>
+    <li>2026-08-27 — 플러그인 v0.30.3 기준 작성. 스킬 24종(워크플로우 17 + 별칭 7)의 실제 <code>skills/*/SKILL.md</code> frontmatter에서 트리거를 추출해 정리.</li>
+    <li>별칭 7종(<code>/modify</code> <code>/impact</code> <code>/scaffold</code> <code>/find</code> <code>/flow</code> <code>/sql</code> <code>/wiki</code>)은 2026-08-27 v0.30.3에서 플러그인에 포함됨 — 어느 PC든 설치만 하면 동일 사용 가능.</li>
+    <li>트리거·라우팅 메커니즘의 내부 설계(매칭 2겹 + 진입 규약, 단일 소스 구조, 신규 스킬 추가 체크리스트)는 자매 문서 <code>skill-triggers.html</code> 참조.</li>
+  </ul>
+  <p>소스: <code>skills/&lt;name&gt;/SKILL.md</code> (플러그인 전역, 유일한 소스)</p>
+</footer>
+
+</div>
