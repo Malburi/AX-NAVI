@@ -40,7 +40,7 @@ export async function test(register, assert) {
     const skillNames = skills.map(({ text }) => field(text, "name"));
 
     assert.equal(agents.length, 19);
-    assert.equal(skills.length, 17);
+    assert.equal(skills.length, 24); // 워크플로우 17 + 별칭 7 (modify/impact/scaffold/find/flow/sql/wiki)
     assert.equal(new Set(agentNames).size, agents.length);
     assert.equal(new Set(skillNames).size, skills.length);
     assert.ok(agentNames.every(Boolean), "에이전트 name 누락");

@@ -24,6 +24,20 @@
 | 중앙 wiki 열람 | `wiki-hub` | 여러 시스템 검색·버전 비교·복원 UI 실행 | 별도 wiki-hub 런타임 |
 | harness 제거 | `harness-clean` | 생성 범위를 확인하고 harness 산출물을 안전하게 제거 | 직접 파일 작업 |
 
+## 별칭 스킬 (단축 호출)
+
+절차를 갖지 않는 얇은 위임 계층이다. `/이름 [내용]` 형태로 호출하면 args를 그대로 본편 스킬에 전달한다.
+
+| 별칭 | 위임 대상 |
+|------|------|
+| `modify` | `safe-modify` |
+| `impact` | `analyze-impact` |
+| `scaffold` | `scaffold-feature` |
+| `find` | `find-feature` |
+| `flow` | `trace-logic` |
+| `sql` | `review-sql` |
+| `wiki` | `generate-wiki` |
+
 ## 에이전트 역할
 
 | 단계 | 에이전트 | 단일 책임 | 하지 않는 일 |

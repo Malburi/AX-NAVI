@@ -51,7 +51,7 @@ export async function test(register, assert) {
     const skillDirs = readdirSync(join(root, "skills"), { withFileTypes: true }).filter((entry) => entry.isDirectory());
     const agentFiles = readdirSync(join(root, "agents")).filter((name) => name.endsWith(".md"));
 
-    assert.equal(skillDirs.length, 17);
+    assert.equal(skillDirs.length, 24); // 워크플로우 17 + 별칭 7 (modify/impact/scaffold/find/flow/sql/wiki)
     assert.equal(agentFiles.length, 19);
     for (const entry of skillDirs) {
       const path = join(root, "skills", entry.name, "SKILL.md");
