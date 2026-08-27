@@ -73,6 +73,8 @@ node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/build-index.mjs" --root "[프로젝트 
   ```
   재인덱싱이 실패하거나(예: 대형 모노레포에서 시간 초과) 사용자가 건너뛰기를 원하면, 이후 모든 인덱스 기반 판정(어댑터 커버리지·영향 분석·패턴 선택)에 `지식 모델 stale — 최신 코드와 다를 수 있음`을 명시하고 진행한다. 소스를 직접 여는 것으로 대체할 수 있으나 그 사실도 함께 보고한다.
 
+  재인덱싱이 실행됐고 `_workspace/wiki/`가 존재하면 기존 wiki도 stale 상태다 — GO 시 Phase 5에서 함께 갱신되므로 여기서는 인지만 하고, HOLD/STOP으로 끝나면 Phase 4 종료 보고에 `generate-wiki` 재실행 안내를 포함한다.
+
 이제부터 소스 파일을 직접 Read로 여는 대신 `query-index.mjs`(symbol/callers/callees/trace/sql/table)로 먼저 질의해 위치·호출관계를 좁힌 뒤, 그 결과로 좁혀진 파일·라인만 최종 확인 차 Read한다. 인덱스 결과는 반드시 실물과 대조하고 — 인덱스가 stale일 수 있는 구간에서는 특히 — 인덱스만 믿고 결론 내리지 않는다.
 
 변경 대상마다 어댑터 커버리지 게이트를 먼저 실행한다.
@@ -233,8 +235,9 @@ GO 후 변경된 코드가 다음 작업과 인수인계 위키에 반영되도�
 
 1. `node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/build-index.mjs" --root "[프로젝트 루트]" --mode incremental`
 2. API·SQL·호출 관계가 바뀌었으면 관련 인덱스가 실제 변경 파일을 포함하는지 `query-index.mjs`로 확인한다(예: `callees --id <변경한 메서드>`가 새 호출을 반영하는지).
-3. `generate-wiki`를 재실행한다.
+3. `generate-wiki`를 재실행한다 — 자동 후속 갱신 호출이므로 generate-wiki Phase 0의 덮어쓰기 Y/N 질문은 생략하고 바로 백업 후 재생성한다(generate-wiki SKILL.md의 "예외 — 자동 후속 갱신 호출" 참조).
 4. 생성된 wiki의 분석 커밋·시각과 현재 HEAD가 맞는지 보고한다.
+5. 이 시스템의 wiki가 중앙 허브에 발행된 이력이 있으면(프로젝트 루트 `.env`에 `WIKI_DB_ENGINE` 등 wiki DB 설정 존재) "허브 발행본도 갱신할까요?"를 1회 물어본다. 기본은 갱신하지 않음이며, 사용자가 원하면 `publish-wiki` 스킬로 위임한다.
 
 갱신 실패는 코드 변경을 되돌리는 사유는 아니지만 `지식 모델 stale` WARN으로 명확히 남기고 재실행 명령을 안내한다.
 
