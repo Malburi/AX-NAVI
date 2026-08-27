@@ -26,9 +26,16 @@ description: 기능명·키워드·도메인 용어로 관련 파일·클래스�
 
 ## Phase 1: 인덱스 확인
 
-`_workspace/index/` 확인:
-- `symbols.json` 있으면 → feature-finder에 전달 (빠른 탐색)
-- 없으면 → feature-finder가 다중 grep 전략으로 대체
+`$env:CLAUDE_PLUGIN_ROOT`가 비어 있으면(일부 환경에서 자동 설정 안 됨), 이 스킬 로드 시 표시된
+"Base directory for this skill"에서 `/skills/find-feature`를 뗀 경로를 대신 쓴다.
+
+```powershell
+node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/build-index.mjs" --root "[프로젝트 루트 절대 경로]" --check-stale
+```
+
+- `symbols.json` 있고 fresh(exit 0)면 → `query-index.mjs symbol --name <키워드>`로 먼저 훑고, 결과를 feature-finder에 전달(빠른 탐색).
+- stale(exit 1)이면 → `--mode incremental`로 재인덱싱 시도. 탐색성 질의라 급하지 않으면 재인덱싱 없이 "인덱스가 stale일 수 있음"만 feature-finder에 알리고 진행해도 된다(find-feature는 read-only라 safe-modify만큼 신선도에 민감하지 않음).
+- 인덱스 자체가 없으면 → feature-finder가 다중 grep 전략으로 대체.
 
 ---
 

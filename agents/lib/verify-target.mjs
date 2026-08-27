@@ -16,8 +16,8 @@
  * - 출력에 상한을 걸고 truncated로 잘린 수를 밝힌다. 조용히 자르지 않는다.
  * - exitCode는 pass=0 / fail·오류=2 (check-adapter-coverage.mjs 관례).
  */
-import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join, resolve, relative, dirname, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const FAIL_LINE_LIMIT = 15; // 명령당 반환할 실패 라인 상한
@@ -44,11 +44,47 @@ function readJson(path) {
   }
 }
 
+const SCAN_EXCLUDED_DIRS = new Set([
+  "node_modules", ".git", "bin", "obj", "packages", "PrecompiledWeb", "dist", "build", ".vs",
+]);
+
+/* fileName을 depth 제한 안에서 얕게 훑는다. suffix가 "."로 시작하면 확장자 매칭(.csproj 등,
+ * 베이스명 무관), 아니면 정확한 파일명 매칭(대소문자 무시, "web.config"가 "개발_web.config"처럼
+ * 접두사 붙은 참고용 사본까지 잘못 집는 걸 방지 — 실제로 이 저장소에 그런 사본이 있었다).
+ * .sln/.csproj/Web.config처럼 개수가 적고 루트 근처에 있는 파일을 찾는 용도라 재귀 전체 스캔은
+ * 피한다(대형 레포에서 이 스크립트 자체가 느려지면 detect의 "부작용 0, 빠른 판단"이라는 존재
+ * 이유가 깨진다). 첫 매치가 아니라 전부 모아 호출부가 고르게 한다. */
+function findFilesShallow(root, suffix, maxDepth) {
+  const results = [];
+  const suffixLower = suffix.toLowerCase();
+  const isExtension = suffixLower.startsWith(".");
+  const matches = (nameLower) => (isExtension ? nameLower.endsWith(suffixLower) : nameLower === suffixLower);
+  function walk(dir, depth) {
+    if (depth > maxDepth) return;
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (SCAN_EXCLUDED_DIRS.has(entry.name)) continue;
+        walk(join(dir, entry.name), depth + 1);
+        continue;
+      }
+      if (matches(entry.name.toLowerCase())) results.push(join(dir, entry.name));
+    }
+  }
+  walk(root, 0);
+  return results;
+}
+
 /*
  * 매니페스트별 검증 명령 후보를 모은다. 실행하지 않고 목록만 만든다.
  * 각 항목: { kind, cmd, source } — kind는 lint|typecheck|test|build.
  */
-function detectCommands(root) {
+function detectCommands(root, target) {
   const commands = [];
   const add = (kind, cmd, source) => commands.push({ kind, cmd, source });
 
@@ -98,6 +134,60 @@ function detectCommands(root) {
     }
   }
 
+  // .NET — 우선순위: ① target이 Web.config 딸린 웹앱 물리 경로 밑이면 aspnet_compiler(레거시
+  // ASP.NET WebForms/MVC Website 프로젝트는 애초에 csproj가 없어 dotnet build/msbuild 대상이
+  // 아니고, 실제 검증 방법은 사전 컴파일뿐이다 — 이 경로가 가장 target에 맞는 검증). ② SDK 스타일
+  // csproj(<Project Sdk="...">)가 있으면 dotnet build. ③ csproj는 있는데 전부 레거시 스타일
+  // (ToolsVersion=... 구식 네임스페이스, .NET Core+ dotnet CLI가 못 빌드함)이면 msbuild.
+  // ④ csproj 없이 sln만 있으면 sln에 msbuild(있어도 실패할 수 있음 — Website 전용 sln은 빌드
+  // 타깃이 없을 수 있다. 그래도 count:0보다는 시도해볼 단서가 있는 편이 낫다).
+  const csprojFiles = findFilesShallow(root, ".csproj", 4);
+  const slnFiles = findFilesShallow(root, ".sln", 2);
+  const webConfigFiles = findFilesShallow(root, "web.config", 3);
+
+  const addAspnetCompiler = (appDir) => {
+    const physicalPath = relative(root, appDir) || ".";
+    const outPath = `_workspace/_precompile_check/${physicalPath.replace(/[\\/]/g, "_") || "root"}`;
+    add(
+      "build",
+      `aspnet_compiler.exe -v / -p "${physicalPath}" -u "${outPath}"`,
+      `${physicalPath}/Web.config (사전 컴파일만 하고 배포는 안 함 — -u 대상은 harness 작업 폴더 하위, aspnet_compiler.exe는 PATH 또는 %WINDIR%\\Microsoft.NET\\Framework\\v4.x\\에 있음)`
+    );
+  };
+
+  const targetAbs = target ? resolve(root, target) : null;
+  const targetWebConfig = targetAbs
+    ? webConfigFiles
+        .map((wc) => dirname(wc))
+        .filter((appDir) => targetAbs === appDir || targetAbs.startsWith(appDir + sep))
+        .sort((a, b) => b.length - a.length)[0] // 가장 깊이 일치하는(가장 구체적인) 앱 루트
+    : null;
+
+  if (targetWebConfig) {
+    // target이 특정 웹앱 물리 경로 밑임이 확실하므로 그 앱 하나만 낸다.
+    addAspnetCompiler(targetWebConfig);
+  } else if (!targetAbs && webConfigFiles.length) {
+    // target 미지정 — 어느 웹앱을 검증하고 싶은지 알 수 없으므로 하나를 임의로 고르지 않고
+    // 발견된 웹앱 전부를 후보로 낸다(모노레포에 웹앱이 여럿일 수 있음 — 실제로 이 저장소도 그렇다).
+    const distinctAppDirs = [...new Set(webConfigFiles.map((wc) => dirname(wc)))];
+    for (const appDir of distinctAppDirs) addAspnetCompiler(appDir);
+  } else if (csprojFiles.length) {
+    const sdkStyle = csprojFiles.filter((p) => /<Project\s+Sdk=/.test(readFileSync(p, "utf8").slice(0, 500)));
+    if (sdkStyle.length) {
+      const chosen = slnFiles[0] || sdkStyle[0];
+      add("build", `dotnet build "${relative(root, chosen)}"`, `${relative(root, chosen)} (SDK 스타일 csproj)`);
+    } else {
+      const chosen = slnFiles[0] || csprojFiles[0];
+      add(
+        "build",
+        `msbuild "${relative(root, chosen)}" -p:Configuration=Debug`,
+        `${relative(root, chosen)} (레거시 ToolsVersion 스타일 csproj — dotnet CLI 대신 msbuild 필요)`
+      );
+    }
+  } else if (slnFiles.length) {
+    add("build", `msbuild "${relative(root, slnFiles[0])}" -t:Build -p:Configuration=Debug`, relative(root, slnFiles[0]));
+  }
+
   // 중복 cmd 제거 (같은 명령이 여러 소스로 잡히는 경우)
   const seen = new Set();
   const unique = commands.filter((c) => (seen.has(c.cmd) ? false : (seen.add(c.cmd), true)));
@@ -133,7 +223,7 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
 
   if (args.command === "detect") {
-    const commands = detectCommands(args.root);
+    const commands = detectCommands(args.root, args.target);
     const payload = {
       command: "detect",
       root: args.root,

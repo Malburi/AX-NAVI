@@ -26,9 +26,16 @@ description: 특정 기능·API·화면의 처리 흐름을 진입점부터 DB�
 
 ## Phase 1: 인덱스 준비
 
-`_workspace/index/` 확인:
-- `symbols.json`, `call_graph.json`, `sql_usage.json` 있으면 → logic-tracer에 전달
-- 없으면 → logic-tracer가 grep 탐색으로 대체 (속도 저하 안내)
+`$env:CLAUDE_PLUGIN_ROOT`가 비어 있으면(일부 환경에서 자동 설정 안 됨), 이 스킬 로드 시 표시된
+"Base directory for this skill"에서 `/skills/trace-logic`를 뗀 경로를 대신 쓴다.
+
+```powershell
+node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/build-index.mjs" --root "[프로젝트 루트 절대 경로]" --check-stale
+```
+
+- fresh(exit 0)면 → `query-index.mjs trace --id <진입점> --depth 3`으로 먼저 경로를 뽑고, 그 결과를 logic-tracer에 전달.
+- stale(exit 1)이면 → `--mode incremental`로 재인덱싱 후 진행. 급한 1회성 추적이면 재인덱싱 없이 "인덱스가 stale일 수 있음"을 logic-tracer에 알리고 진행해도 된다.
+- 인덱스 자체가 없으면 → logic-tracer가 grep 탐색으로 대체(속도 저하 안내).
 
 ---
 

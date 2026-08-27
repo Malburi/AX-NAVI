@@ -104,6 +104,20 @@ writer가 할 일은 **`_workspace/claude_md_fields.json`에 다음 필드만 �
 - **scaffolder.md** — 신규 기능 파일 체크리스트 (기본형, 패턴 강제는 scaffold-feature가 담당)
 - **find-logic.md** — 역방향(쿼리/route → 코드) 탐색
 
+**trace.md와 find-logic.md는 인덱스 경로만 언급하지 말고, 이 프로젝트에 실제로 생성된 인덱스에 대한
+`query-index.mjs` 실행 가능 명령 예시를 최소 2개 이상 포함해야 한다.** 예: 대형 인덱스(symbols/
+call_graph/sql_usage 등 수 MB 이상)를 Read로 직접 여는 대신 아래처럼 저토큰 질의를 쓰도록 명시한다.
+
+```
+node <플러그인 루트>/agents/lib/query-index.mjs symbol --name <이 프로젝트 실제 클래스/함수명> --root <프로젝트 루트>
+node <플러그인 루트>/agents/lib/query-index.mjs callers --id <이 프로젝트 실제 메서드 ID> --root <프로젝트 루트>
+```
+
+예시의 대상(클래스명·메서드 ID·테이블명)은 플레이스홀더가 아니라 `_workspace/01_analyzer_report.md`나
+인덱스에서 실제로 뽑은 이 프로젝트의 심볼을 써서, 사용자가 그대로 복사해 돌려볼 수 있게 한다.
+symbols.json이 메서드 단위까지 못 채우는 스택(예: 일부 dotnet 어댑터)이면 `callers`/`trace`/`callees`
+예시(call_graph.json 기반, 메서드 단위 보장)를 우선하고 `symbol` 예시는 클래스 단위로 안내한다.
+
 `domain-expert.md`는 writer 소관 아님 (위 "C. 작업용 에이전트" 참조 — skills_builder.py가 analyzer_report 복사로 생성).
 
 ---

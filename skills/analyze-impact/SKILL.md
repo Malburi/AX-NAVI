@@ -29,19 +29,25 @@ description: 변경 대상(파일/함수/클래스/SQL/엔드포인트/DB 컬럼
 
 ## Phase 1: 인덱스 준비
 
-`_workspace/index/` 확인:
+먼저 신선도를 확인한다. `$env:CLAUDE_PLUGIN_ROOT`가 비어 있으면(일부 환경에서 자동 설정 안 됨),
+이 스킬 로드 시 표시된 "Base directory for this skill"에서 `/skills/analyze-impact`를 뗀 경로를
+대신 쓴다.
 
-| 인덱스 | 필요한 분석 |
-|--------|---------|
-| `call_graph.json` | 메서드/함수 영향 분석 |
-| `sql_usage.json` | SQL ID 영향 |
-| `schema.json` | DB 컬럼 영향 |
-| `external_io.json` | 외부 시스템 영향 평가 |
-| `transactions.json` | 트랜잭션 경계 영향 |
+```powershell
+node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/build-index.mjs" --root "[프로젝트 루트 절대 경로]" --check-stale
+```
 
-필요한 인덱스가 없거나 stale(코드보다 오래됨)이면:
-- `feature-scoped` 모드로 analyzer를 먼저 호출 → 변경 대상 주변만 빠르게 재인덱싱
-- 또는 사용자에게 "전체 인덱스 갱신 권고 — `하네스 초기화`로 incremental 실행" 안내
+exit 1(`stale:true`)이면 재인덱싱 후 진행한다 — `reason`이 `인덱스 없음`이면 `--mode init`, 그 외(소스 변경·인덱서 버전 변경)면 `--mode incremental`. 변경 대상 범위가 좁고 전체 재인덱싱이 부담스러우면 `feature-scoped` 모드로 analyzer를 호출해 대상 주변만 빠르게 재인덱싱해도 된다. 재인덱싱이 불가능한 상황이면(대형 모노레포 시간 초과 등) 이후 리포트에 `지식 모델 stale` 경고를 명시하고 진행한다.
+
+이후 아래 인덱스를 `query-index.mjs` 질의로 활용한다(원본 JSON을 Read로 직접 열지 않는다 — 대형 인덱스는 수십 MB):
+
+| 인덱스 | 필요한 분석 | 질의 예시 |
+|--------|---------|---------|
+| `call_graph.json` | 메서드/함수 영향 분석 | `callers --id <메서드>`, `trace --id <메서드> --depth 3` |
+| `sql_usage.json` | SQL ID 영향 | `sql --id <SQL ID>` 또는 `sql --table <테이블>` |
+| `schema.json` | DB 컬럼 영향 | `schema --table <테이블>` |
+| `external_io.json` | 외부 시스템 영향 평가 | (해당 인덱스는 아직 query-index.mjs 명령 없음 — 필요 시 직접 열람) |
+| `transactions.json` | 트랜잭션 경계 영향 | `transaction --id <메서드>` |
 
 ---
 
@@ -57,6 +63,11 @@ Agent(
   model="opus"
 )
 ```
+
+호출 후 `_workspace/reports/impact_<slug>.md`가 실제로 생성됐는지 확인한다 — 드물게 에이전트가 실제
+작업 없이 "백그라운드로 실행했다, 기다리겠다" 식 대기 응답만 내고 끝나는 경우(no-op)가 있다. 파일이
+없으면 "이전 시도는 실제 작업 없이 끝났다. 대기 언급 없이 이번 턴 안에서 직접 산출물을 생성하라"를
+프롬프트에 명시해 1회 재호출한다. 재시도도 실패하면 사용자에게 알린다.
 
 slug 생성: 변경 대상의 안전한 파일명 형태 (예: `OrderService_cancel`, `TBL_ORDER_STATUS`).
 

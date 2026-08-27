@@ -21,6 +21,24 @@ ITO/SI에서 "수정 → 곧장 commit → 운영 사고"의 사이클을 끊는
 
 ---
 
+## 에이전트 호출 신뢰성 원칙 (Phase 1·3-1·3-3 공통)
+
+이 스킬이 호출하는 `impact-analyzer`/`pattern-conformance`/`change-safety` 에이전트는 드물게
+실제 작업 없이 "백그라운드로 실행했습니다, 완료되면 알려드리겠습니다" 같은 자기참조적 대기
+응답만 내고 끝나는 경우가 있다(no-op). 각 Agent 호출 후:
+
+1. 지시한 출력 파일(`_workspace/reports/impact_<slug>.md` 등)이 **실제로 디스크에 생성됐는지 확인**한다. 응답 텍스트만 보고 완료로 간주하지 않는다.
+2. 파일이 없거나 응답이 위와 같은 대기·연기 형태면, **같은 에이전트를 1회 재호출**하되 프롬프트에 "이전 시도는 실제 작업 없이 끝났다. 백그라운드 실행이나 대기 언급 없이 이번 턴 안에서 직접 파일을 읽고 분석해서 Write로 산출물을 생성하라"를 명시한다.
+3. 재시도까지 실패하면 진행을 멈추고 사용자에게 상황을 알린 뒤 지시를 기다린다(임의로 게이트를 건너뛰지 않는다).
+
+**잔여 백그라운드 에이전트 위생**: 같은 세션에서 이전에 백그라운드로 띄운 에이전트가 있다면(특히
+위 no-op 재시도 후 방치된 것), 새 Phase 1·3-1·3-3 호출을 시작하기 전에 남아 있는지 확인한다.
+방치된 에이전트가 뒤늦게 재개되면 이번 작업이 이미 검증·확정한 산출물(`pattern_profile.json` 등)을
+예고 없이 덮어쓸 수 있다. 남아 있으면 `TaskStop`으로 정리하고 나서 새 호출을 진행한다. 대기 중인
+에이전트가 "추가 작업/스크립트 실행 승인"을 요청하는 경우에도, 이번 작업 범위 밖이면 승인하지 않는다.
+
+---
+
 ## Phase 0: 컨텍스트 추출
 
 사용자 자연어에서 운영 모드 키워드 감지:
@@ -34,6 +52,28 @@ ITO/SI에서 "수정 → 곧장 commit → 운영 사고"의 사이클을 끊는
 | (없음) | normal |
 
 mode는 change-safety에 전달되어 가중치 조정에 사용된다.
+
+인덱스 신선도부터 확인한다 — stale한 인덱스로 어댑터 판정·패턴 선택·영향 분석을 하면 근거 자체가
+틀릴 수 있다.
+
+`$env:CLAUDE_PLUGIN_ROOT`가 비어 있는 환경이 있다(플랫폼/호스트에 따라 자동 설정 안 될 수 있음).
+먼저 `echo $env:CLAUDE_PLUGIN_ROOT`(PowerShell) 또는 `echo $CLAUDE_PLUGIN_ROOT`(Bash)로 값이
+있는지 확인하고, 비어 있으면 이 스킬이 로드될 때 표시된 "Base directory for this skill" 경로에서
+`/skills/safe-modify`를 뗀 나머지를 플러그인 루트로 대신 쓴다. 아래 명령의 `$env:CLAUDE_PLUGIN_ROOT`는
+전부 그렇게 구한 실제 경로로 치환해 실행한다.
+
+```powershell
+node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/build-index.mjs" --root "[프로젝트 루트 절대 경로]" --check-stale
+```
+
+- exit 0(`stale:false`): 그대로 진행.
+- exit 1(`stale:true`): 아래로 재인덱싱 후 진행. `reason`이 `인덱스 없음`이면 `--mode init`, 그 외(소스 변경·인덱서 버전 변경)면 `--mode incremental`.
+  ```powershell
+  node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/build-index.mjs" --root "[프로젝트 루트 절대 경로]" --mode incremental
+  ```
+  재인덱싱이 실패하거나(예: 대형 모노레포에서 시간 초과) 사용자가 건너뛰기를 원하면, 이후 모든 인덱스 기반 판정(어댑터 커버리지·영향 분석·패턴 선택)에 `지식 모델 stale — 최신 코드와 다를 수 있음`을 명시하고 진행한다. 소스를 직접 여는 것으로 대체할 수 있으나 그 사실도 함께 보고한다.
+
+이제부터 소스 파일을 직접 Read로 여는 대신 `query-index.mjs`(symbol/callers/callees/trace/sql/table)로 먼저 질의해 위치·호출관계를 좁힌 뒤, 그 결과로 좁혀진 파일·라인만 최종 확인 차 Read한다. 인덱스 결과는 반드시 실물과 대조하고 — 인덱스가 stale일 수 있는 구간에서는 특히 — 인덱스만 믿고 결론 내리지 않는다.
 
 변경 대상마다 어댑터 커버리지 게이트를 먼저 실행한다.
 
@@ -191,8 +231,8 @@ GO는 `어댑터 FULL + 패턴 CONFORM + 필수 검증 exit 0 + change-safety GO
 
 GO 후 변경된 코드가 다음 작업과 인수인계 위키에 반영되도록 기본 실행한다.
 
-1. 결정론적 인덱서를 incremental 모드로 실행한다.
-2. API·SQL·호출 관계가 바뀌었으면 관련 인덱스가 실제 변경 파일을 포함하는지 확인한다.
+1. `node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/build-index.mjs" --root "[프로젝트 루트]" --mode incremental`
+2. API·SQL·호출 관계가 바뀌었으면 관련 인덱스가 실제 변경 파일을 포함하는지 `query-index.mjs`로 확인한다(예: `callees --id <변경한 메서드>`가 새 호출을 반영하는지).
 3. `generate-wiki`를 재실행한다.
 4. 생성된 wiki의 분석 커밋·시각과 현재 HEAD가 맞는지 보고한다.
 

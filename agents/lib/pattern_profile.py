@@ -5,6 +5,13 @@ import os
 import sys
 from datetime import datetime, timezone
 
+# Windows 콘솔은 기본 codepage(예: cp949)로 stdout을 여는데, ensure_ascii=False로 찍는 JSON에
+# em-dash 등 codepage 밖 문자가 섞이면 UnicodeEncodeError로 죽는다. 항상 UTF-8로 강제한다.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except AttributeError:
+    pass  # Python 3.6 이하 등 reconfigure 미지원 환경 — 그대로 두되 크래시는 감수
+
 
 ALLOWED_STATUS = {"preferred", "legacy", "anti_pattern"}
 ALLOWED_CONFIDENCE = {"HIGH", "MEDIUM", "LOW"}

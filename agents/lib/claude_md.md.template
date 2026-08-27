@@ -22,6 +22,18 @@
 | **기존 기능 개선/수정 양쪽 저장소 반영 (pair 연동 시)** | cross-repo-modify |
 
 축약 호출: `영향도 [대상]` `안전수정 [내용]` `스캐폴드 [기능명]` `마이그 [현재 → 목표]` `SQL리뷰 [쿼리·SQL ID]`
+짧은 별칭(플러그인 전역, 모든 프로젝트 공통): `/modify` `/impact` `/scaffold` `/find` `/flow` `/sql` `/wiki`
+
+## 작업 프로토콜 (인덱스 우선)
+소스를 직접 열기 전에 이 순서를 따른다 — 토큰을 아끼고, 하네스가 이미 파악한 호출관계·컨벤션을 놓치지 않기 위함이다.
+
+1. **신선도 확인**: `node <플러그인 루트>/agents/lib/build-index.mjs --root <프로젝트 루트> --check-stale`
+   - exit 0(fresh) → 2번으로.
+   - exit 1(stale) → `--mode incremental`로 재인덱싱 후 2번으로. 급한 1회성 조회면 재인덱싱을 생략해도 되지만, 그 경우 답변에 "인덱스가 최신 코드와 다를 수 있음"을 명시한다.
+2. **인덱스 질의**: `node <플러그인 루트>/agents/lib/query-index.mjs <symbol|callers|callees|trace|sql|table|schema|endpoint|transaction> --root <프로젝트 루트> ...` — 대형 인덱스(symbols/call_graph/sql_usage 등)를 Read로 통째로 열지 않는다.
+3. **실물 대조**: 질의 결과로 좁혀진 파일·라인만 Read로 열어 최종 확인한다. 인덱스 결과를 그대로 믿고 결론 내리지 않는다 — 특히 재인덱싱을 생략한 경우.
+
+수정 작업(safe-modify 등)을 마쳤으면 `--mode incremental`로 인덱스를 다시 갱신해 다음 작업이 최신 상태를 참조하게 한다.
 
 ---
 
