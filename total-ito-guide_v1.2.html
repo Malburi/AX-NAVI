@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>IX-MATE — 시스템 지식 기반 AI 개발 · 도입 소개</title>
+  <title>IX-MATE — 설치부터 위키 발행까지 전 과정</title>
   <style>
     /* ============================================================================
    IX-MATE 발표자료
@@ -797,7 +797,7 @@
         <div class="body" style="display:flex;flex-direction:column;justify-content:center;gap:0">
           <div class="eyebrow" data-r style="--d:.05s">
             <b>IX-MATE</b><span>LLM 확장 하네스</span><span class="bar"></span>
-            <span>도입 소개 · 보고자료</span>
+            <span>사내 세미나 · 보고자료</span>
           </div>
           <h1 data-r
             style="--d:.12s;font-size:64px;line-height:1.08;font-weight:800;letter-spacing:-.035em;max-width:940px">
@@ -860,7 +860,7 @@
               IX-MATE는 소스코드에서 <b style="color:var(--cyan)">구조·관계·컨벤션·도메인 지식</b>을 추출하고,
               이를 AI가 작업마다 다시 활용할 수 있는 개발 컨텍스트로 전환합니다.
               <br/>
-              AI에게 매번 설명하는 방식에서 <b style="color:var(--cyan)">시스템이 스스로 설명하는 개발 방식</b>으로 바꾸는 것입니다.
+              AI에게 매번 설명하는 방식에서 <b style="color:var(--cyan)">시스템이 스스로 설명되는 개발 방식</b>으로 바꾸는 것입니다.
             </div>
           </div>
         </div>
@@ -989,8 +989,8 @@
               <div><span class="g">total-ito@total-ito — enabled</span> <span class="m">✓</span></div>
             </div>
             <div class="note" data-r style="--d:.3s;margin-top:18px">
-              터미널에서 비대화형으로 설치하려면 <code>claude plugin install total-ito@total-ito --scope user</code>를 사용합니다.
-              설치가 되지 않을 때는 저장소 루트에서 <code>claude plugin validate . --strict</code>로 원인을 먼저 확인할 수 있습니다.
+              터미널에서 비대화형으로 설치하려면 <code>claude plugin install total-ito@total-ito --scope user</code>를 쓰세요.
+              설치가 안 되면 저장소 루트에서 <code>claude plugin validate . --strict</code>로 원인부터 확인해 보시고요.
             </div>
           </div>
           <div class="grid" style="gap:14px;align-content:start">
@@ -1003,13 +1003,13 @@
             </div>
             <div class="card amber" data-r style="--d:.32s">
               <h3>설치되지 않는 것</h3>
-              <p>대상 시스템의 소스는 변경되지 않습니다. 분석 결과 파일이 추가될 뿐이며,
-                그것도 다음 단계에서 직접 실행할 때 생성됩니다.</p>
+              <p>대상 시스템의 소스는 그대로예요. 분석 결과 파일이 생길 뿐이고,
+                그것도 다음 단계에서 직접 실행할 때 만들어집니다.</p>
             </div>
             <div class="card mint" data-r style="--d:.4s">
               <h3>필요한 준비물</h3>
-              <p>Claude Code 최신 버전이면 충분합니다. 중앙 DB 발행까지 활용하는 경우에만 파이썬 패키지
-                <code style="color:var(--mint)">sqlalchemy</code>와 DB 드라이버 하나를 추가로 준비하면 됩니다.
+              <p>Claude Code 최신 버전이면 됩니다. 중앙 DB 발행까지 쓸 계획이라면 파이썬 패키지
+                <code style="color:var(--mint)">sqlalchemy</code>와 DB 드라이버 하나만 더 준비하세요.
               </p>
             </div>
           </div>
@@ -1034,21 +1034,21 @@
               <div><span class="a">›</span> 그대로</div>
             </div>
             <div class="note" data-r style="--d:.26s;margin-top:18px">
-              요청에 구성·경로를 미리 적어 두면 첫 질문은 생략됩니다.
+              요청에 구성·경로를 이미 적어 두면 첫 질문은 건너뜁니다.
               <b style="color:var(--amber)">"빠르게"</b>(Standard)나
-              <b style="color:var(--amber)">"심층"</b>(Full)을 덧붙이면 두 번째 질문도 생략됩니다.
+              <b style="color:var(--amber)">"심층"</b>(Full)을 덧붙이면 두 번째 질문도 사라지고요.
             </div>
           </div>
           <div class="grid" style="gap:14px;align-content:start">
             <div class="card" data-r style="--d:.2s">
-              <h3>구성을 먼저 확인하는 이유</h3>
-              <p>백엔드와 프론트엔드가 다른 저장소라면 분석 범위도, 이후 위키를 묶는 방식도 달라집니다.
-                여기서 잘못 잡으면 한 시스템이 둘로 나뉘어 관리되기 때문입니다.</p>
+              <h3>왜 구성을 먼저 묻나요</h3>
+              <p>백엔드와 프론트엔드가 다른 저장소라면 분석 범위도, 나중에 위키를 묶는 방식도 달라집니다.
+                여기서 잘못 잡으면 한 시스템이 둘로 쪼개져 보이거든요.</p>
             </div>
             <div class="card amber" data-r style="--d:.28s">
               <h3>기본값이 Full인 이유</h3>
               <p>레거시 유지보수에서는 얕은 분석이 놓친 위험(미해결 관계·인증 우회·트랜잭션 경계)을
-                나중에 치르는 비용이 분석 시간보다 큽니다. 그래서 분석 범위를 줄이는 선택은 한 번 더 확인합니다.</p>
+                나중에 치르는 비용이 분석 시간보다 큽니다. 그래서 범위를 줄이는 쪽은 한 번 더 여쭤봐요.</p>
             </div>
             <div style="display:flex;gap:14px">
               <div class="card" data-r style="flex:1;--d:.36s">
@@ -1188,19 +1188,19 @@
           <div class="grid" style="gap:14px;align-content:start">
             <div class="card mint" data-r style="--d:.24s">
               <h3>git에 커밋할 것</h3>
-              <p><code style="color:var(--mint)">CLAUDE.md</code> 와 <code style="color:var(--mint)">.claude/</code> 입니다.
-                팀원이 이 파일을 받으면 그 팀원의 AI도 동일한 컨벤션과 도메인 지식으로 시작합니다.
-                "한 사람이 분석하고 팀 전체가 재사용한다"를 실현하는 구조입니다.</p>
+              <p><code style="color:var(--mint)">CLAUDE.md</code> 와 <code style="color:var(--mint)">.claude/</code> 예요.
+                팀원이 이걸 받으면 그 사람의 Claude도 똑같은 컨벤션과 도메인 지식으로 시작합니다.
+                "한 사람이 분석하고 팀이 재사용한다"가 실제로 이런 모습입니다.</p>
             </div>
             <div class="card amber" data-r style="--d:.32s">
               <h3>남겨두면 좋은 것</h3>
               <p><code style="color:var(--amber)">_workspace/index/</code> 는 영향도 분석과 안전 변경이
-                참조하는 지식 파일입니다. 삭제하면 이후 작업이 코드를 처음부터 다시 분석해야 하므로 시간과 비용이 늘어납니다.</p>
+                참조하는 파일이에요. 지우면 그 작업들이 코드를 처음부터 다시 훑어야 해서, 느려지고 토큰도 더 씁니다.</p>
             </div>
             <div class="card" data-r style="--d:.4s">
               <h3>코드가 바뀌면</h3>
               <p>전체를 다시 초기화할 필요 없이 <b style="color:var(--cyan)">"인덱스만 갱신해줘"</b>라고 하면 됩니다.
-                바뀐 파일만 증분으로 분석합니다 — LLM 호출 없이 수십 초면 완료됩니다.</p>
+                바뀐 파일만 증분으로 분석해요 — LLM 호출 없이 수십 초면 끝납니다.</p>
             </div>
           </div>
         </div>
@@ -1271,9 +1271,9 @@
             <div class="card amber" style="flex:1" data-r>
               <h3 style="font-size:16.5px">_meta — 어디까지 믿을 수 있는가</h3>
               <p style="font-size:14px">파일마다 <span class="tag mi">FULL</span> <span class="tag am">PARTIAL</span>
-                <span class="tag ro">UNSUPPORTED</span> 를 기록합니다. WinForms Designer · DevExpress · XFDL ·
+                <span class="tag ro">UNSUPPORTED</span> 를 기록해요. WinForms Designer · DevExpress · XFDL ·
                 JSP/Struts XML 처럼 PARTIAL인 대상은 <b style="color:var(--amber)">자동 변경 판정이 HOLD</b>로 고정됩니다 —
-                분석 신뢰 수준을 실제보다 부풀리지 않기 위한 안전장치입니다.
+                "파일을 찾았다"를 "안전하게 고칠 수 있다"로 부풀리지 않으려는 장치예요.
               </p>
             </div>
           </div>
@@ -1295,7 +1295,7 @@
             <span class="tag cy">코드 위치</span>
             <h3 style="margin-top:10px">"결제 관련 코드 어디 있어?"</h3>
             <p><code style="color:var(--cyan)">find-feature</code> → 관련 파일 · 클래스 · 메서드 · SQL ID 목록.
-              키워드가 코드에 없어도 도메인 지식으로 찾아냅니다</p>
+              키워드가 코드에 없어도 도메인 지식으로 찾는다</p>
           </div>
           <div class="card amber" data-r style="--d:.26s">
             <span class="tag am">변경 전 확인</span>
@@ -1330,8 +1330,8 @@
           <div class="card" data-r style="--d:.56s">
             <span class="tag">알아서</span>
             <h3 style="margin-top:10px">"알아서 해줘"</h3>
-            <p><code style="color:var(--cyan)">vibe</code> → 사소한 작업은 빠르게 처리하고,
-              위험한 변경으로 판단되면 스스로 safe-modify 절차로 승격합니다</p>
+            <p><code style="color:var(--cyan)">vibe</code> → 사소한 작업은 빠르게 끝내고,
+              위험한 변경이라고 판단되면 스스로 safe-modify 절차로 승격한다</p>
           </div>
         </div>
       </section>
@@ -1339,10 +1339,10 @@
       <!-- ═══════════════════════ 08-1 단축 호출 ═══════════════════════ -->
       <section class="slide" data-sec="3" data-title="단축 호출">
         <div class="eyebrow" data-r><b>활용</b><span class="bar"></span><span>확정 경로로 부르기</span></div>
-        <h2 data-r style="--d:.05s">특정 절차를 <em>확실하게</em> 실행하려면 <span class="warn">슬래시 별칭</span>을 사용합니다</h2>
+        <h2 data-r style="--d:.05s">특정 스킬을 <em>반드시</em> 태우려면 <span class="warn">슬래시 별칭</span>을 씁니다</h2>
         <p class="lede" data-r style="--d:.1s;margin-bottom:20px">
-          자연어 요청도 대부분 정확히 연결되지만, 결국 AI가 등록된 트리거와의 유사도로 판단하는 확률 매칭입니다.
-          <b style="color:var(--chalk)">/modify</b>처럼 슬래시로 호출하면 그 판단 없이 항상 해당 절차가 실행됩니다.
+          자연어 요청도 대부분 잘 맞지만, 결국 LLM이 등록된 트리거와의 유사도로 판단하는 확률 매칭입니다.
+          <b style="color:var(--chalk)">/modify</b>처럼 슬래시로 부르면 그 판단 없이 항상 해당 스킬로 들어갑니다.
         </p>
         <div class="body grid" style="grid-template-columns:1.15fr .85fr;gap:26px">
           <div class="term" data-r style="--d:.16s;font-size:14.5px;line-height:1.95">
@@ -1365,7 +1365,7 @@
               <span class="tag am">확률 매칭</span>
               <h3 style="margin-top:8px">자연어 트리거</h3>
               <p>"고쳐줘", "어디서 쓰여?" 같은 문구는 등록된 트리거와 가까운 스킬로 확률적으로 연결됩니다.
-                특정 절차를 반드시 실행해야 한다면 별칭 호출을 권장합니다.</p>
+                반드시 그 스킬을 태워야 한다면 별칭을 쓰세요.</p>
             </div>
             <div class="card violet" data-r style="--d:.4s">
               <span class="tag vi">한글 축약</span>
@@ -1451,12 +1451,12 @@
           </svg>
           <div class="grid" style="grid-template-columns:1fr 1fr;gap:18px;margin-top:10px">
             <div class="card" data-r style="--d:1.2s">
-              <h3>대응이 빨라지는 이유</h3>
-              <p>코드를 처음부터 훑지 않습니다. 미리 구축해 둔 호출 그래프·SQL 사용처·트랜잭션 경계
-                인덱스로 원인 후보를 먼저 좁힌 다음, 해당 파일만 확인합니다.</p>
+              <h3>왜 빠른가요</h3>
+              <p>코드를 처음부터 훑지 않아요. 미리 만들어 둔 호출 그래프·SQL 사용처·트랜잭션 경계
+                인덱스를 먼저 질의해 후보를 좁힌 다음, 그 파일만 읽습니다.</p>
             </div>
             <div class="card amber" data-r style="--d:1.28s">
-              <h3>상황에 따라 판단 기준이 달라집니다</h3>
+              <h3>상황을 말해 주면 기준이 달라져요</h3>
               <p><span class="tag am">운영 패치야</span> <span class="tag am">긴급 핫픽스야</span>
                 <span class="tag am">레거시 손보는 거야</span> <span class="tag am">고객 데모 직전이야</span>
                 — 상황에 맞춰 안전성 판단의 무게추가 함께 옮겨 갑니다.
@@ -1483,7 +1483,7 @@
           <div class="card amber" data-pop style="--d:.3s">
             <div style="font-family:var(--mono);font-size:34px;font-weight:700;color:var(--amber);line-height:1">HOLD
             </div>
-            <h3 style="margin-top:12px">추가 확인이 필요합니다</h3>
+            <h3 style="margin-top:12px">확인이 좀 필요해요</h3>
             <p>영향은 파악됐지만 아직 검증하지 못한 구간이 남아 있습니다. PARTIAL 지원 스택(WinForms Designer ·
               XFDL 등)이 걸린 변경은 여기서 멈춥니다. 무엇을 확인해야 하는지 함께 알려 드립니다.</p>
           </div>
@@ -1496,8 +1496,8 @@
           </div>
           <div style="grid-column:1/-1;margin-top:6px" data-fade>
             <div class="note" style="--d:.6s;font-size:15px;border-left-color:var(--amber)">
-              이 구조가 "AI가 임의로 고쳤는데 무엇을 고쳤는지 알 수 없다"는 상황을 방지합니다.
-              <b style="color:var(--chalk)">판단은 언제나 사람이 합니다</b> — 도구는 판단에 필요한 근거를 빠짐없이 모아 올 뿐입니다.
+              이 구조가 있어야 "LLM이 알아서 고쳤는데 뭘 고쳤는지 모르겠다" 같은 일이 안 생겼습니다.
+              <b style="color:var(--chalk)">판단은 언제나 사람이 합니다</b> — 도구는 판단에 필요한 재료를 빠짐없이 모아 올 뿐입니다.
             </div>
           </div>
         </div>
@@ -1554,17 +1554,17 @@
             <div class="card" data-r style="--d:.3s">
               <h3>"양쪽 다 수정해줘"</h3>
               <p><code style="color:var(--cyan)">cross-repo-modify</code> — API 시그니처가 바뀌는 변경을
-                양쪽 저장소에 함께 반영하고, API 계약이 어긋나면 해당 지점을 명확히 알려 줍니다.</p>
+                양쪽 저장소에 맞춰 반영해 주고, 계약이 어긋나면 그 지점을 짚어 줍니다.</p>
             </div>
             <div class="card" data-r style="--d:.38s">
               <h3>"전체 스택 기능 만들어줘"</h3>
               <p><code style="color:var(--cyan)">cross-repo-scaffold</code> — 백엔드와 선택한 클라이언트에
-                신규 기능 골격을 동시에 생성합니다. 허브형 1:N(웹+모바일+관리자)도 지원합니다.</p>
+                신규 기능 골격을 동시에 만들어요. 허브형 1:N(웹+모바일+관리자)도 지원합니다.</p>
             </div>
             <div class="card violet" data-r style="--d:.46s">
-              <h3>위키에서는 한 시스템으로 통합됩니다</h3>
+              <h3>위키에서는 한 시스템으로 묶여요</h3>
               <p>저장소가 둘이어도 <b style="color:var(--violet)">시스템 키만 같으면</b> 중앙 위키에서는
-                한 시스템 아래 두 레이어로 표시됩니다. 이 규칙이 지켜져야 한 시스템이 둘로 나뉘어 관리되는 일을 막을 수 있습니다.</p>
+                한 시스템 아래 두 레이어로 보입니다. 이 규칙이 깨지면 한 시스템이 둘로 쪼개져 버립니다.</p>
             </div>
           </div>
         </div>
@@ -1575,7 +1575,7 @@
         <div class="eyebrow" data-r><b>위키</b><span class="bar"></span><span>generate-wiki</span></div>
         <h2 data-r style="--d:.05s">분석 결과를 <em>사람과 조직이 함께 쓰는 시스템 문서</em>로 전환합니다</h2>
         <p class="lede" data-r style="--d:.1s;margin-bottom:20px">
-          이미 구축한 인덱스와 리포트를 조립하는 단계이므로 LLM을 거의 사용하지 않습니다 — 몇 번을 실행해도 같은 결과가 나옵니다.
+          이미 만들어 둔 인덱스와 리포트를 조립하는 단계라 LLM을 거의 쓰지 않습니다. — 몇 번을 돌려도 결과는 같습니다.
         </p>
         <div class="body grid" style="grid-template-columns:1fr 1fr;gap:26px">
           <div class="grid" style="gap:14px;align-content:start">
@@ -1587,12 +1587,12 @@
             <div class="card mint" data-r style="--d:.26s">
               <h3>호출 그래프는 그림으로</h3>
               <p><code style="color:var(--mint)">call_graph.json</code> → 마우스로 끌고 확대할 수 있는
-                인터랙티브 HTML로 변환됩니다. 라이브러리를 파일 안에 포함해 폐쇄망에서도 바로 열립니다.</p>
+                인터랙티브 HTML이에요. 라이브러리를 파일에 함께 담아, 인터넷 없이도 바로 열립니다.</p>
             </div>
             <div class="card" data-r style="--d:.34s">
               <h3>보는 방법</h3>
               <p><code style="color:var(--cyan)">_workspace/wiki/serve.bat</code> 를 실행하면
-                <code style="color:var(--cyan)">localhost:3501</code> 에서 열립니다. 단일 프로젝트를 버전 이력 없이 조회하는 방식입니다.
+                <code style="color:var(--cyan)">localhost:3501</code> 에서 열려요. 이 프로젝트 하나만, 버전 이력 없이 보는 방식입니다.
               </p>
             </div>
           </div>
@@ -1611,8 +1611,8 @@
               <div><span class="a">›</span> Y</div>
             </div>
             <div class="note" data-r style="--d:.4s;margin-top:18px">
-              기본 산출물은 폴더 위키입니다. DB 발행은 완료 후 확인을 거치는 <b style="color:var(--chalk)">선택 단계</b>이며,
-              조회 서버가 아직 없어도 저장은 즉시 가능합니다 — 저장과 조회를 분리해 설계했기 때문입니다.
+              기본은 폴더예요. DB 발행은 완료 후 질문으로만 나타나는 <b style="color:var(--chalk)">선택 단계</b>이고,
+              조회 서버가 아직 없어도 저장은 지금 바로 됩니다 — 저장과 조회를 따로 떼어 뒀기 때문입니다.
             </div>
           </div>
         </div>
@@ -1653,14 +1653,14 @@
           <div class="grid" style="gap:14px;align-content:start">
             <div class="card" data-r style="--d:.24s">
               <h3>담당자 정보는 <b style="color:var(--cyan)">선택</b>입니다</h3>
-              <p>아무것도 남기지 않으면 담당자 없이 그대로 발행됩니다 — 강제하지 않습니다.
-                다만 장애 시 바로 연락할 수 있는 정보이므로, 허브 화면에서 나중에라도 채워 두는 것을 권장합니다.
+              <p>아무것도 안 남기면 담당자 없이 그대로 발행됩니다 — 강제로 묻지 않습니다.
+                다만 장애 때 바로 닿을 수 있는 정보라, 허브 화면에서 나중에라도 채워 두면 좋습니다
               </p>
             </div>
             <div class="card violet" data-r style="--d:.4s">
               <h3>사번이 아니라 (회사명 + 사번)이 키입니다</h3>
-              <p>ITO 현장에는 원청·협력사 인원이 함께 근무합니다. 사번만으로 식별하면 회사가 다른 동일 사번이
-                한 사람으로 합쳐질 수 있어, (회사명 + 사번) 유일 제약으로 이를 방지합니다.</p>
+              <p>ITO 현장에는 원청·협력사 인원이 섞여 있어요. 사번만으로 키를 잡으면 회사가 다른 동일 사번이
+                한 사람으로 합쳐집니다. 유일 제약으로 그런 사고를 막습니다.</p>
             </div>
             <div class="card" data-r style="--d:.48s">
               <h3>담당 구분</h3>
@@ -1755,7 +1755,7 @@
                 플러그인 안에 넣었습니다 — 필요한 건 <code style="color:var(--violet)">pip install sqlalchemy</code>와 드라이버 하나뿐입니다.</p>
             </div>
             <div class="card" data-r style="--d:1.02s">
-              <h3>엔진을 바꿔도 작업 방식은 같습니다</h3>
+              <h3>엔진을 바꿔도 작업 방식은 같아요</h3>
               <p>테이블 정의가 한 곳에만 있고, SQLAlchemy가 엔진별 SQL로 알아서 컴파일해 줍니다.
                 MSSQL로 시작했다가 나중에 PostgreSQL로 옮겨도 <code>.env</code> 한 줄만 바꾸면 됩니다.</p>
             </div>
@@ -1766,7 +1766,7 @@
       <!-- ═══════════════════════ 15 DB 스키마 (숨김 — 나중에 쓸 수도 있어 보관. 되살리려면 class를 "slide"로 바꾸고 hidden 제거) ═══════════════════════ -->
       <section class="slide-hidden" data-sec="5" data-title="DB 스키마" hidden>
         <div class="eyebrow" data-r><b>DB 설계</b><span class="bar"></span><span>담당자·권한을 더한 구조</span></div>
-        <h2 data-r style="--d:.05s">기존 표는 <em>그대로 두고</em>, 사람 축을 옆에 추가했습니다</h2>
+        <h2 data-r style="--d:.05s">기존 표는 <em>그대로 두고</em>, 사람 축을 옆에 붙였어요</h2>
         <div class="body" style="display:flex;align-items:center;justify-content:center">
           <svg viewBox="0 0 1128 400" style="width:100%;max-height:420px">
             <defs>
@@ -1894,35 +1894,35 @@
       <!-- ═══════════════════════ 16 권한 로드맵 (숨김 — 나중에 쓸 수도 있어 보관. 되살리려면 class를 "slide"로 바꾸고 hidden 제거) ═══════════════════════ -->
       <section class="slide-hidden" data-sec="5" data-title="권한 관리 로드맵" hidden>
         <div class="eyebrow" data-r><b>DB 설계</b><span class="bar"></span><span>지금 무엇이 되고, 무엇이 남았나</span></div>
-        <h2 data-r style="--d:.05s">표는 <em>지금</em> 만들어 두고, 강제는 <span class="warn">스위치</span>로 미뤘습니다</h2>
+        <h2 data-r style="--d:.05s">표는 <em>지금</em> 만들어 두고, 강제는 <span class="warn">스위치</span>로 미뤘어요</h2>
         <p class="lede" data-r style="--d:.1s">
-          권한을 나중에 한꺼번에 붙이려면 그때 스키마를 다시 변경해야 하고, 그사이 쌓인 발행 기록에는
-          사람이 연결돼 있지 않아 소급도 되지 않습니다. 그래서 구조를 먼저 만들어 두고 동작만 미뤄 두었습니다.
+          권한을 나중에 한꺼번에 붙이려면 그때 스키마를 다시 흔들어야 하고, 그사이 쌓인 발행 기록에는
+          사람이 연결돼 있지 않아 소급도 안 됩니다. 그래서 자리를 먼저 만들어 두고 동작만 미뤄 뒀어요.
         </p>
         <div class="body grid" style="grid-template-columns:repeat(4,1fr);gap:16px;align-content:start">
           <div class="card mint" data-r style="--d:.18s">
             <span class="tag mi">완료</span>
             <h3 style="margin-top:10px">1 · 사람을 남깁니다</h3>
-            <p>발행할 때마다 담당자가 마스터에 축적되고, 페이지 버전·발행 로그가 그 사람과 연결됩니다.
+            <p>발행할 때마다 담당자가 마스터에 쌓이고, 페이지 버전·발행 로그가 그 사람을 가리켜요.
               지금 바로 동작합니다.</p>
           </div>
           <div class="card mint" data-r style="--d:.26s">
             <span class="tag mi">완료</span>
             <h3 style="margin-top:10px">2 · 역할과 권한 표</h3>
-            <p>reader · editor · manager · admin 네 역할과 7개 권한이 자동으로 채워집니다.
+            <p>reader · editor · manager · admin 네 역할과 7개 권한이 자동으로 채워져요.
               범위는 전체 / 시스템 / 레이어 3단으로 상속됩니다.</p>
           </div>
           <div class="card amber" data-r style="--d:.34s">
             <span class="tag am">준비됨</span>
             <h3 style="margin-top:10px">3 · 부여와 회수</h3>
-            <p>사번으로 사람을 찾아 역할을 부여합니다. 회수할 때는 행을 지우지 않고 비활성으로 남겨 이력이
-              보존됩니다. 스위치는 아직 <b style="color:var(--amber)">off</b>라 실제 차단은 일어나지 않습니다.</p>
+            <p>사번으로 사람을 찾아 역할을 줍니다. 회수할 때는 행을 지우지 않고 비활성으로 남겨 이력이
+              보존돼요. 스위치는 아직 <b style="color:var(--amber)">off</b>라 실제 차단은 일어나지 않습니다.</p>
           </div>
           <div class="card" data-r style="--d:.42s">
             <span class="tag">다음</span>
             <h3 style="margin-top:10px">4 · 로그인과 차단</h3>
             <p>조회 서버가 사내 SSO/LDAP로 사람을 식별하고, 스위치를 켜면 권한 없는 시스템은
-              목록에서부터 표시되지 않습니다. 접근 시도는 감사 로그에 남습니다.</p>
+              목록에서부터 사라져요. 접근 시도는 감사 로그에 남습니다.</p>
           </div>
           <div style="grid-column:1/-1;margin-top:6px">
             <div class="term" data-r style="--d:.55s;font-size:14.5px">
@@ -2020,7 +2020,7 @@
             <div class="card mint" data-r style="--d:.3s;margin-top:12px">
               <h3>공유</h3>
               <p><code style="color:var(--mint)">git add CLAUDE.md .claude/</code><br>
-                팀원의 AI도 같은 기준으로 시작합니다</p>
+                팀원의 Claude도 같은 기준으로 시작한다</p>
             </div>
           </div>
           <div>
@@ -2046,7 +2046,7 @@
             </div>
             <div class="card violet" data-r style="--d:.68s;margin-top:12px">
               <h3>중앙 발행</h3>
-              <p>담당자 정보와 함께 발행<br>바뀐 페이지만 새 버전으로 축적됩니다</p>
+              <p>담당자 정보와 함께 발행<br>바뀐 페이지만 새 버전이 쌓인다</p>
             </div>
             <div class="card violet" data-r style="--d:.74s;margin-top:12px">
               <h3>통합 열람</h3>
@@ -2059,7 +2059,7 @@
       <!-- ═══════════════════════ 19 마무리 ═══════════════════════ -->
       <section class="slide-hidden" data-sec="5" data-title="정리" hidden>
         <div class="eyebrow" data-r><b>정리</b><span class="bar"></span><span>무엇이 달라지나</span></div>
-        <h2 data-r style="--d:.05s">AI가 <em>판단을 대신하지 않습니다</em> — 판단의 근거를 구조화하고 검증 절차를 수행합니다</h2>
+        <h2 data-r style="--d:.05s">AI가 <em>판단을 대신하지 않아요</em> — 판단의 근거를 구조화하고 검증 절차를 수행합니다</h2>
         <div class="body grid" style="grid-template-columns:1fr 1fr;gap:26px;align-content:start">
           <div class="grid" style="gap:14px;align-content:start">
             <div class="card mint" data-r style="--d:.16s">
