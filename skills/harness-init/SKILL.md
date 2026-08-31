@@ -179,6 +179,8 @@ wiki·QA는 Tier와 무관하게 두 Tier 모두 자동 실행에서 스킵되�
 - 백업 대상: `CLAUDE.md`, `.claude/skills/*.md`, `.claude/agents/*.md` (공통 에이전트는 제외, 프로젝트 전용만), `.claude/patterns/`
 - 백업 위치: `.claude/backup/[YYYYMMDD-HHMMSS]/`
 
+변경 이력 보존: 재초기화·업데이트로 CLAUDE.md를 다시 조립할 때 `skills_builder.py`가 기존 CLAUDE.md의 `## 변경 이력` 표 데이터 행을 추출해 그대로 이어 붙이고 이번 실행 행만 추가한다(매번 1행으로 리셋되지 않음). 단 표가 손상됐거나 수기 편집으로 형식이 깨져 파싱에 실패하면 과거 이력이 이번 실행 행으로 대체되며, 이때 `skills_builder.py`가 `WARN: ... '## 변경 이력' 표를 파싱하지 못해 ...`를 stderr로 출력한다 — 이 WARN이 보이면 백업본에서 이력 표를 확인·복원한다.
+
 ### Step 4: 작업공간 준비
 
 `_workspace/` 디렉토리:

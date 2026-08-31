@@ -355,7 +355,13 @@ def deploy_claude_md(root, decisions=None):
     prior_rows = ""
     if os.path.isfile(existing_path):
         with open(existing_path, "r", encoding="utf-8-sig") as f:
-            prior_rows = _extract_prior_changelog_rows(f.read())
+            existing_text = f.read()
+        prior_rows = _extract_prior_changelog_rows(existing_text)
+        # '## 변경 이력' 섹션은 있는데 데이터 행을 못 뽑았으면(표 손상·수기 편집 등)
+        # 조용히 초기 이력으로 리셋되지 않게 경고한다 — 이력 소실은 눈에 보여야 한다.
+        if not prior_rows and "## 변경 이력" in existing_text:
+            print("WARN: 기존 CLAUDE.md의 '## 변경 이력' 표를 파싱하지 못해 과거 이력을 보존하지 못했습니다 — "
+                  "표 형식(헤더 + 구분선 + 데이터 행)을 확인하세요. 이번 실행 이력만 기록됩니다.", file=sys.stderr)
     if prior_rows:
         changelog_rows = prior_rows + "\n" + f"| {generation_date} | 하네스 재초기화 (analyzer 재분석 반영) | 전체 | harness-init 재실행 |\n"
     else:

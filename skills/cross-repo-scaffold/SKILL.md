@@ -100,8 +100,8 @@ description: 페어 연동된 백엔드+프론트엔드(1:1) 또는 백엔드+�
 
 ### 프론트엔드 충돌
 
-`[frontend_root]/src/` 내 동일 도메인 서비스 파일 또는 컴포넌트명 검색:
-- 있으면 → "기존 파일에 함수를 추가할까요, 신규 파일을 만들까요?"
+`frontend_targets`의 **각 대상마다** `[target.root]/src/`(또는 그 스택의 소스 루트) 내 동일 도메인 서비스 파일·컴포넌트명을 검색한다 — 단일 대상만 보지 않는다(1:N에서 일부 클라이언트에만 있는 충돌을 놓치지 않기 위함):
+- 있으면 → 해당 대상 label과 함께 "[label]에 기존 파일이 있습니다. 함수를 추가할까요, 신규 파일을 만들까요?"
 
 ---
 
@@ -181,6 +181,7 @@ Agent(
   Step 1 — 서비스 스텁 생성 (api-bridge generate-stub 지침 따름):
     - 먼저 pattern_profile.py select로 대상 경로·모듈·레이어의 preferred 프로필과 실제 기준 파일 선택
     - api_contract.json의 [METHOD /path] 항목 기반
+    - 요청/응답 DTO 타입은 api_contract.json의 models{} 정의(엔드포인트가 참조하는 모델의 필드·타입)를 실제로 읽어 채운다. models에 해당 모델이 있으면 필드를 // TODO로 남기지 말고 스텁 타입/인터페이스에 반영한다. models에 없을 때만 // TODO로 표시한다.
     - 클라이언트 스택(분석 리포트 또는 package.json)에 맞는 스타일 적용
     - 기존 서비스 파일 있으면 함수 추가, 없으면 도메인 기반 신규 생성
     - axios 인스턴스 경로는 패턴 파일 또는 기존 서비스 파일에서 확인
@@ -273,7 +274,7 @@ Agent(
   - [DAO 파일]: 실제 쿼리 작성
   [클라이언트별]
   - [Component 파일]: UI 구현 (// TODO 위치)
-  - [Service 파일]: DTO 타입 백엔드 실제 필드 기준으로 보완
+  - [Service 파일]: DTO 타입 — api_contract.json models에 있던 필드는 반영 완료, models에 없어 // TODO로 남은 필드만 백엔드 실제 필드 기준으로 보완
 
 실패한 대상 (있으면): [target.label] — [실패 사유]
 

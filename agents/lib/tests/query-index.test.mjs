@@ -100,6 +100,48 @@ export async function test(register, assert) {
     });
   });
 
+  register("symbol 질의는 짧은 이름·파일로 심볼을 찾고 누락 인덱스는 사유를 알린다", () => {
+    const SYMBOLS = {
+      _meta: {},
+      symbols: [
+        { id: "kr.co.demo.service.OrderService", type: "class", file: "src/OrderService.java", line: 1, package: "kr.co.demo.service" },
+        { id: "kr.co.demo.service.OrderService.save", type: "method", file: "src/OrderService.java", line: 20, package: "kr.co.demo.service" },
+        { id: "kr.co.demo.web.OrderController", type: "class", file: "src/OrderController.java", line: 1, package: "kr.co.demo.web" },
+        { id: "kr.co.demo.service.MemberService", type: "class", file: "src/MemberService.java", line: 1, package: "kr.co.demo.service" },
+      ],
+    };
+    withIndex({ symbols: SYMBOLS }, (root) => {
+      /* 짧은 이름으로 물어도 마지막 segment·부분 문자열로 맞는다 — MemberService는 제외돼야 한다. */
+      const byName = COMMANDS.symbol({ root, name: "OrderService", limit: 50 });
+      assert.equal(byName.total, 2, `OrderService 관련만: ${JSON.stringify(byName.items)}`);
+      assert.ok(byName.items.every((item) => item.id.includes("OrderService")));
+
+      /* 파일로 좁히면 그 파일 심볼만. */
+      const byFile = COMMANDS.symbol({ root, file: "OrderController.java", limit: 50 });
+      assert.equal(byFile.total, 1);
+      assert.equal(byFile.items[0].id, "kr.co.demo.web.OrderController");
+
+      /* 상한 초과는 total·truncated로 드러난다. */
+      const capped = COMMANDS.symbol({ root, name: "Service", limit: 1 });
+      assert.equal(capped.returned, 1);
+      assert.ok(capped.total >= 3, `Service 포함 심볼 다수: ${capped.total}`);
+      assert.equal(capped.truncated, capped.total - 1, "잘린 수를 명시해야 한다");
+    });
+
+    /* symbols.json이 없으면 "결과 0건"이 아니라 인덱스 부재를 알려야 한다. */
+    withIndex({ call_graph: GRAPH }, (root) => {
+      let threw = false;
+      try {
+        COMMANDS.symbol({ root, name: "OrderService", limit: 50 });
+      } catch (error) {
+        threw = true;
+        assert.equal(error.missingIndex, "symbols");
+        assert.ok(/build-index/.test(error.message), `복구 방법 안내: ${error.message}`);
+      }
+      assert.ok(threw, "인덱스가 없으면 조용히 빈 결과를 주면 안 된다");
+    });
+  });
+
   register("schema 질의는 참조하는 쪽 FK까지 함께 준다", () => {
     withIndex({
       schema: {

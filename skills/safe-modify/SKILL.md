@@ -95,7 +95,7 @@ python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/pattern_profile.py" validate --root "
 python "$env:CLAUDE_PLUGIN_ROOT/agents/lib/pattern_profile.py" select --root "[프로젝트 루트 절대 경로]" --target "[변경 대상 경로]" --module "[모듈명]" --limit 20
 ```
 
-프로필이 없으면 Markdown 패턴과 동일 모듈의 유사 코드로 폴백할 수 있지만, 리포트에 `구조화 패턴 미검증`을 표시한다. 신규 파일 생성이 포함된 변경은 폴백하지 않고 pattern-extractor를 먼저 실행한다.
+프로필이 없으면 Markdown 패턴과 동일 모듈의 유사 코드로 폴백할 수 있지만, 리포트에 `구조화 패턴 미검증`을 표시한다. 신규 파일 생성이 포함된 변경은 폴백하지 않고 pattern-extractor를 먼저 실행한다. 기존 파일 수정이라도 `구조화 패턴 미검증` 상태에서는 자동 GO를 내지 않는다(Phase 4 참조) — 패턴 근거가 약한 채로 통과하지 않게 한다.
 
 ---
 
@@ -227,7 +227,7 @@ Agent(
 전체 리포트: _workspace/reports/safety_<slug>.md
 ```
 
-GO는 `어댑터 FULL + 패턴 CONFORM + 필수 검증 exit 0 + change-safety GO`가 모두 충족될 때만 사용한다. 검증을 실행하지 못했거나 어댑터가 PARTIAL/UNSUPPORTED면 위험 점수가 낮아도 HOLD(`UNVERIFIED`)로 보고한다.
+GO는 `어댑터 FULL + 패턴 CONFORM + 필수 검증 exit 0 + change-safety GO`가 모두 충족될 때만 사용한다. 검증을 실행하지 못했거나 어댑터가 PARTIAL/UNSUPPORTED면 위험 점수가 낮아도 HOLD(`UNVERIFIED`)로 보고한다. Phase 0에서 `구조화 패턴 미검증`으로 폴백한 경우도 자동 GO 대상이 아니다 — 다른 조건이 모두 충족돼도 HOLD(`구조화 패턴 미검증`)로 보고하고, 진행하려면 사용자에게 "패턴 근거가 없는 상태로 적용할까요?"를 명시적으로 확인받은 뒤에만 GO로 올린다.
 
 ## Phase 5: 인덱스·위키 증분 갱신
 
