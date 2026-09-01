@@ -543,9 +543,14 @@ class OrderStore {
   register("서로 다른 애매함 패턴은 별개 그룹으로 나뉜다 (회귀 가드)", () => {
     const root = mkdtempSync(join(tmpdir(), "ax-indexer-unresolved-group-distinct-"));
     try {
-      write(root, "src/ambiguous.ts", `
-class FirstTarget { run(value: number) {} read(value: number) {} }
-class SecondTarget { run(value: number) {} read(value: number) {} }
+      write(root, "src/ambiguous.ts", `class FirstTarget {
+  run(value: number) {}
+  read(value: number) {}
+}
+class SecondTarget {
+  run(value: number) {}
+  read(value: number) {}
+}
 export function caller(target: unknown) {
   target.run(1);
   target.run(2);
@@ -555,8 +560,8 @@ export function caller(target: unknown) {
       buildIndex({ root, mode: "init", tier: "Standard", config: null });
       const groupsDoc = json(root, "_unresolved_groups.json");
       assert.equal(groupsDoc.groups.length, 2, `run(...)/read(...)는 서로 다른 패턴이라 그룹도 2개여야 함: ${JSON.stringify(groupsDoc.groups.map((g) => g.key_field))}`);
-      const runGroup = groupsDoc.groups.find((g) => g.key_field.startsWith("run"));
-      const readGroup = groupsDoc.groups.find((g) => g.key_field.startsWith("read"));
+      const runGroup = groupsDoc.groups.find((g) => g.key_field.includes(".run("));
+      const readGroup = groupsDoc.groups.find((g) => g.key_field.includes(".read("));
       assert.equal(runGroup?.occurrence_count, 2);
       assert.equal(readGroup?.occurrence_count, 1);
     } finally {
