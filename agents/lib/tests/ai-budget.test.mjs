@@ -144,4 +144,17 @@ export async function test(register, assert) {
     const capped = estimateCost({ source_file_count: 5000, tier: "Full" }, { counts: {}, coverage: { unresolved_decidable_count: 2000 } });
     assert.equal(huge.estimated_tokens, capped.estimated_tokens, "미해결 건수는 상한에서 포화해야 함");
   });
+
+  register("그룹 카운트가 있으면 발생 위치 수 대신 그룹 수로 견적을 잡는다 (반복 패턴 압축)", () => {
+    /* 실사용 세션 실측: 발생 위치 2,380건이 실제로는 고유 패턴 185개 — 그룹 필드가 있으면
+     * 그 값을 써야 발생 위치 수를 그대로 쓸 때보다 견적이 훨씬 작아진다. */
+    const withoutGroups = estimateCost({ source_file_count: 2575, tier: "Full" }, { counts: {}, coverage: { unresolved_decidable_count: 2380 } });
+    const withGroups = estimateCost({ source_file_count: 2575, tier: "Full" }, { counts: {}, coverage: { unresolved_decidable_count: 2380, unresolved_decidable_group_count: 185 } });
+    assert.ok(withGroups.estimated_tokens < withoutGroups.estimated_tokens, `그룹 카운트를 우선해야 함: ${withGroups.estimated_tokens} vs ${withoutGroups.estimated_tokens}`);
+    assert.equal(withGroups.decidable_unresolved, 185, "반환값도 그룹 수를 반영해야 함");
+
+    /* 옛 인덱스(그룹 필드 없음)는 기존 필드로 폴백해야 하위호환이 깨지지 않는다. */
+    const legacyIndex = estimateCost({ source_file_count: 2575, tier: "Full" }, { counts: {}, coverage: { unresolved_decidable_count: 2380 } });
+    assert.equal(legacyIndex.decidable_unresolved, 2380, "그룹 필드가 없는 옛 인덱스는 발생 위치 수로 폴백해야 함");
+  });
 }

@@ -507,6 +507,63 @@ class OrderStore {
     }
   });
 
+  register("같은 애매함이 반복되는 미해결 관계는 발생 위치가 아니라 고유 패턴으로 그룹핑된다", () => {
+    const root = mkdtempSync(join(tmpdir(), "ax-indexer-unresolved-group-"));
+    try {
+      /* 위 "200건을 넘어도 잘라내지 않는다" 테스트와 동일한 진짜 모호 케이스를 재사용한다 —
+       * target.run(...)이 250곳에서 호출되지만 전부 같은 (표현식, candidates) 조합이므로
+       * 그룹은 정확히 1개여야 한다(실사용 세션에서 확인한 패턴: 발생 위치 수백~수천 건이
+       * 고유 패턴 몇 개로 수렴). */
+      const calls = Array.from({ length: 250 }, (_, i) => `  target.run(${i});`).join("\n");
+      write(root, "src/ambiguous.ts", `class FirstTarget {\n  run(value: number) {}\n}\nclass SecondTarget {\n  run(value: number) {}\n}\nexport function caller(target: unknown) {\n${calls}\n}\n`);
+      buildIndex({ root, mode: "init", tier: "Standard", config: null });
+      const groupsDoc = json(root, "_unresolved_groups.json");
+      assert.equal(groupsDoc.groups.length, 1, `동일 패턴 250건이 그룹 1개로 묶여야 함: ${JSON.stringify(groupsDoc._meta)}`);
+      const [group] = groupsDoc.groups;
+      assert.equal(group.kind, "ambiguous_call");
+      assert.equal(group.occurrence_count, 250);
+      assert.equal(group.occurrences.length, 250, "그룹 상한(2000) 안이므로 occurrences를 생략하면 안 됨");
+      assert.equal(groupsDoc._meta.decidable_raw_count, 250);
+      assert.equal(groupsDoc._meta.total_occurrences, 250);
+
+      const analysisInput = json(root, "_analysis_input.json");
+      assert.equal(analysisInput.coverage.unresolved_decidable_count, 250, "발생 위치 기준 카운트는 그대로 유지");
+      assert.equal(analysisInput.coverage.unresolved_decidable_group_count, 1, "그룹 기준 카운트가 실제 판정 횟수를 반영해야 함");
+      assert.equal(analysisInput.analyzer_contract.process_all_unresolved, true);
+      assert.equal(analysisInput.evidence.unresolved_groups, "_workspace/index/_unresolved_groups.json");
+
+      const unresolvedLines = readFileSync(join(root, "_workspace", "index", "_unresolved.jsonl"), "utf8").trim().split(/\r?\n/).map((line) => JSON.parse(line));
+      assert.equal(unresolvedLines.length, 250, "_unresolved.jsonl 감사 원본은 발생 위치 수만큼 그대로 유지");
+      assert.ok(unresolvedLines.every((item) => item.group_id === group.group_id), "모든 발생 위치가 같은 group_id를 가리켜야 함");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  register("서로 다른 애매함 패턴은 별개 그룹으로 나뉜다 (회귀 가드)", () => {
+    const root = mkdtempSync(join(tmpdir(), "ax-indexer-unresolved-group-distinct-"));
+    try {
+      write(root, "src/ambiguous.ts", `
+class FirstTarget { run(value: number) {} read(value: number) {} }
+class SecondTarget { run(value: number) {} read(value: number) {} }
+export function caller(target: unknown) {
+  target.run(1);
+  target.run(2);
+  target.read(1);
+}
+`);
+      buildIndex({ root, mode: "init", tier: "Standard", config: null });
+      const groupsDoc = json(root, "_unresolved_groups.json");
+      assert.equal(groupsDoc.groups.length, 2, `run(...)/read(...)는 서로 다른 패턴이라 그룹도 2개여야 함: ${JSON.stringify(groupsDoc.groups.map((g) => g.key_field))}`);
+      const runGroup = groupsDoc.groups.find((g) => g.key_field.startsWith("run"));
+      const readGroup = groupsDoc.groups.find((g) => g.key_field.startsWith("read"));
+      assert.equal(runGroup?.occurrence_count, 2);
+      assert.equal(readGroup?.occurrence_count, 1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   register("DDL FK·인덱스와 MyBatis JOIN 관계·mapper 사용처를 결정적으로 전수 추출한다", () => {
     const root = mkdtempSync(join(tmpdir(), "ax-indexer-db-relations-"));
     try {

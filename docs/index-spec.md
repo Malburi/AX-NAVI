@@ -141,9 +141,33 @@ FROM/JOIN 절의 `ROWNUM`·`DUAL`·`SYSDATE`·`LEVEL` 같은 의사테이블은 
 
 후보가 둘 이상일 때는 곧바로 넘기지 않고 **스코프 좁히기**를 한 번 시도한다(`call`·`inject`·`inherit`). 대부분의 언어가 좁은 스코프를 먼저 찾으므로 `same_file` → `same_package` → `same_workspace` 순으로 걸러, 어느 단계에서 **후보가 정확히 하나로 줄어들 때만** 결정론적으로 확정한다. 이렇게 확정한 엣지는 `confidence: "MEDIUM"`과 함께 근거를 `resolved_by`(`same_file` | `same_package` | `same_workspace`)로 남긴다. 좁혔는데 둘 이상 남으면(더 넓은 규칙으로는 갈라지지 않으므로) 즉시 중단하고, 끝까지 하나로 줄지 않으면 종전대로 `_unresolved.jsonl`에 후보 목록과 함께 넘긴다 — 없는 엣지를 지어내지 않는 것이 인덱서의 계약이고, 애매하면 analyzer에게 넘긴다.
 
-`_unresolved.jsonl`은 미해결을 한 건도 빠뜨리지 않고 적지만, 그중 판정 대상은 **후보가 2개 이상인 레코드**뿐이다. 이들이 후보 적은 순으로 파일 앞부분에 오고, 상한(2000건)을 넘는 나머지는 위치와 `candidate_count`만 남고 `candidates_omitted: true`가 붙는다. 후보가 0~1개인 레코드(핸들러가 인덱스에 아예 없는 트리거 바인딩 등)는 고를 것이 없어 소스를 열어도 판정이 성립하지 않으므로, 뒤쪽에 감사 기록으로만 남기고 `no_candidates: true`를 붙여 판정 대상에서 제외한다.
+`_unresolved.jsonl`은 미해결을 한 건도 빠뜨리지 않고 적지만, 그중 판정 대상은 **후보가 2개 이상인 레코드**뿐이다. 이들이 후보 적은 순으로 파일 앞부분에 오고, 상한(2000건)을 넘는 나머지는 위치와 `candidate_count`만 남고 `candidates_omitted: true`가 붙는다. 후보가 0~1개인 레코드(핸들러가 인덱스에 아예 없는 트리거 바인딩 등)는 고를 것이 없어 소스를 열어도 판정이 성립하지 않으므로, 뒤쪽에 감사 기록으로만 남기고 `no_candidates: true`를 붙여 판정 대상에서 제외한다. 판정 대상 레코드에는 `group_id`가 붙는다 — 아래 `_unresolved_groups.json`의 같은 필드와 대응하는 역추적용이며, 정상 판정 흐름에서는 이 파일이 아니라 그룹 파일을 기준으로 처리한다.
 
-`_analysis_input.json`은 판정 가능 건수를 `coverage.unresolved_decidable_count`(후보 2개 이상인 레코드 수)로 따로 싣고, `analyzer_contract.skip_no_candidate_records: true`로 제외 규칙을 명시한다. `analyzer_contract.process_all_unresolved`는 전체 미해결 수가 아니라 이 판정 가능 건수를 상한과 비교해 정하며, `false`면 `unresolved_priority`(후보 적은 순 상위 N건)만 판정 대상이 된다.
+`_analysis_input.json`은 판정 가능 건수를 `coverage.unresolved_decidable_count`(후보 2개 이상인 레코드 수, 발생 위치 기준)로 싣고, `analyzer_contract.skip_no_candidate_records: true`로 제외 규칙을 명시한다. 다만 analyzer의 판정 예산·배치는 이 값이 아니라 `coverage.unresolved_decidable_group_count`(고유 패턴 수) 기준이다 — 아래 `_unresolved_groups.json` 참조. `analyzer_contract.process_all_unresolved`도 전체 미해결 수가 아니라 이 그룹 수를 상한(2000개 그룹)과 비교해 정하며, `false`면 `unresolved_priority`(후보 적은 순 상위 N개 **그룹**)만 판정 대상이 된다.
+
+### `_unresolved_groups.json` — 판정 그룹핑 (2026-09-01)
+
+레거시 코드베이스는 같은 애매함(같은 표현식/대상 + 같은 candidates 조합)이 코드 곳곳에서 반복되는 경우가 흔하다 — 실측(레거시 Java 프로젝트)에서 판정 대상 발생 위치 2,380건이 실제로는 고유 패턴 185개뿐이었고(한 패턴이 872곳에서 반복), 이 프로젝트의 견적은 그룹핑 도입 전 163분에서 도입 후 27분으로 줄었다. 발생 위치마다 파일을 열어 매번 같은 판정을 반복하는 대신, 이 파일은 `_unresolved.jsonl`의 판정 대상 레코드를 `(kind, 식별 필드, candidates)` 조합으로 묶어 낸다.
+
+```json
+{
+  "_meta": { "generated_at": "...", "generator": "deterministic-indexer", "group_count": 185, "decidable_raw_count": 2380, "total_occurrences": 2380 },
+  "groups": [
+    {
+      "group_id": "g0001",
+      "kind": "ambiguous_call",
+      "key_field": "user.getUserNo(...)",
+      "candidates": ["eduport.common.login.model.StudySession.getUserNo", "eduport.common.login.model.UserSession.getUserNo"],
+      "occurrence_count": 872,
+      "occurrences": [
+        { "from": "coperframe.common.servlet.AjaxController.processRequest", "file": "WEB-INF/src/java/coperframe/common/servlet/AjaxController.java", "line": 144, "workspace": "root" }
+      ]
+    }
+  ]
+}
+```
+
+`key_field`는 `kind`에 따라 `expression`(`ambiguous_call`) · `handler_name`(`unresolved_trigger`) · `target_name`(`ambiguous_injection`/`ambiguous_inherit`) 중 해당 값을 그대로 옮긴 것이다. `occurrences[]`는 그룹에 속한 모든 발생 위치를 담으며, 그룹 수가 상한(2000개)을 넘는 극단적인 경우에만 `occurrences_omitted: true`로 생략된다(실측 규모 대비 이 상한은 훨씬 넉넉하다). analyzer는 그룹당 `occurrences[0]`만 열어 판정하고 나머지 occurrence에는 같은 판정을 그대로 적용한다 — 상세 계약은 `agents/analyzer.md` Step 8 참조.
 
 ---
 

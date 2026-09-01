@@ -35,7 +35,7 @@ import {
 } from "./adapters/registry.mjs";
 import { extractNexacro } from "./adapters/nexacro.mjs";
 
-export const INDEXER_VERSION = "1.9.0"; // 1.9.0: 인라인 SQL 리터럴 토크나이저 교체 + enclosingMethod usage + 페이지 기반 시드 — 기존 인덱스가 --check-stale에서 stale 판정되어 재인덱싱되도록 상향
+export const INDEXER_VERSION = "1.10.0"; // 1.10.0: _unresolved_groups.json 신설(판정 대상을 패턴 단위로 그룹핑) + _unresolved.jsonl에 group_id 부여 — 기존 인덱스가 --check-stale에서 stale 판정되어 재인덱싱되도록 상향
 
 /* AI edge patch에서 허용하는 관계 종류. analyzer는 노드를 새로 만들 수 없고 기존 노드 사이의 관계만 보강한다. */
 const AI_PATCH_EDGE_TYPES = new Set(["call", "inject", "inherit", "reflect"]);
@@ -2566,7 +2566,46 @@ function buildDigest(output, globalMeta, limits = DIGEST_LIMITS) {
   };
 }
 
-function buildAnalysisInput(output, globalMeta, unresolved, decidableCount, fileSizes = new Map()) {
+/*
+ * 미해결 관계 중 상당수는 서로 다른 위치에서 "같은 애매함"이 반복된다 — 예를 들어
+ * `user.getUserNo()`가 두 후보(StudySession/UserSession) 사이에서 애매하면, 그 표현식이
+ * 나오는 861곳 전부가 사실 동일한 판정 문제다(실측: 레거시 Java 프로젝트에서 판정 대상
+ * 2,356건이 실제로는 고유 패턴 188개뿐 — 12.5배 중복, JS 프로젝트에서는 4,860건이 483개).
+ * 지금까지는 analyzer가 발생 위치마다 파일을 열어 같은 판정을 반복했다. groupUnresolvedDecidable()은
+ * (kind, 식별 필드, candidates) 조합으로 묶어 analyzer가 그룹당 대표 사례 1곳만 판정하고,
+ * 나머지 발생 위치는 같은 판정을 기계적으로 재적용하게 한다 — _ai_patch.json에는 여전히
+ * 발생 위치 수만큼 add_edge가 나오므로 그래프 정확도·감사 가능성은 그대로고, LLM 판정
+ * 횟수만 준다. 문맥에 따라 판정이 갈릴 수 있는 패턴(같은 표현식이 클래스마다 다른 타입으로
+ * 선언된 경우 등)은 analyzer가 대표 사례 외 표본을 더 확인하거나 개별 판정으로 되돌릴 수
+ * 있게 analyzer.md Step 8에 예외 절차를 둔다 — 이 함수는 그룹 후보만 만들고 강제하지 않는다.
+ */
+function unresolvedGroupKeyField(item) {
+  return item.expression ?? item.target_name ?? item.handler_name ?? "";
+}
+function unresolvedFromId(item) {
+  if (item.kind === "unresolved_trigger") return `trigger:${item.trigger}`;
+  return item.from ?? item.caller ?? null;
+}
+function unresolvedGroupKey(item) {
+  return JSON.stringify([item.kind, unresolvedGroupKeyField(item), item.candidates || []]);
+}
+function groupUnresolvedDecidable(decidableItems) {
+  const groups = new Map();
+  for (const item of decidableItems) {
+    const key = unresolvedGroupKey(item);
+    let group = groups.get(key);
+    if (!group) {
+      group = { kind: item.kind, key_field: unresolvedGroupKeyField(item), candidates: item.candidates || [], occurrences: [] };
+      groups.set(key, group);
+    }
+    group.occurrences.push({ from: unresolvedFromId(item), file: item.file, line: item.line, workspace: item.workspace });
+  }
+  return [...groups.values()]
+    .sort((a, b) => (a.candidates.length - b.candidates.length) || (b.occurrences.length - a.occurrences.length))
+    .map((group, index) => ({ group_id: `g${String(index + 1).padStart(4, "0")}`, ...group, occurrence_count: group.occurrences.length }));
+}
+
+function buildAnalysisInput(output, globalMeta, unresolved, decidableCount, decidableGroupCount, fileSizes = new Map()) {
   const count = (name, key) => Array.isArray(output[name]?.[key]) ? output[name][key].length : 0;
   const evidenceFiles = new Set();
   const collectFiles = (name, key) => {
@@ -2604,8 +2643,13 @@ function buildAnalysisInput(output, globalMeta, unresolved, decidableCount, file
       source_file_count: globalMeta.source_file_count,
       indexed_files: globalMeta.indexes,
       unresolved_count: unresolved.length,
-      /* 그중 후보가 2개 이상이라 실제로 판정할 수 있는 건수 — analyzer 예산은 이 값을 기준으로 잡는다. */
+      /* 판정 대상(후보 2개 이상)의 발생 위치 수 — 감사용 원본 카운트. 비용 추정은 아래
+       * unresolved_decidable_group_count를 쓴다(같은 패턴이 반복 발생하는 경우가 많아
+       * 이 값만으로 예산을 잡으면 과대추정된다). */
       unresolved_decidable_count: decidableCount,
+      /* (kind+식별필드+candidates) 조합 기준 고유 패턴 수 — analyzer가 실제로 판정을
+       * 내려야 하는 횟수다. ai-budget.mjs estimate()가 이 값을 기준으로 예산을 잡는다. */
+      unresolved_decidable_group_count: decidableGroupCount,
       evidence_file_count: evidenceFiles.size,
     },
     counts: {
@@ -2636,6 +2680,9 @@ function buildAnalysisInput(output, globalMeta, unresolved, decidableCount, file
       representative_files_skipped: { oversized: oversizedSkipped, over_budget: budgetSkipped, per_file_cap_bytes: REPRESENTATIVE_PER_FILE_CAP },
       indexes: globalMeta.indexes.map((name) => `_workspace/index/${name}.json`),
       unresolved: "_workspace/index/_unresolved.jsonl",
+      /* 판정 대상을 고유 패턴 단위로 묶은 파일 — analyzer는 원칙적으로 _unresolved.jsonl을
+       * 줄 단위로 순회하지 않고 이 파일의 groups[]를 기준으로 판정한다 (analyzer_contract 참고). */
+      unresolved_groups: "_workspace/index/_unresolved_groups.json",
       /* 대형 인덱스를 Read로 여는 대신 필요한 줄만 얻는 질의 도구. 플러그인 루트 기준 경로다.
        * 예전에는 존재하지 않는 `scripts/query-index.mjs`를 가리키고 있어 에이전트가 원본 JSON(최대 143MB)을
        * 직접 열 수밖에 없었다. */
@@ -2661,11 +2708,29 @@ function buildAnalysisInput(output, globalMeta, unresolved, decidableCount, file
        * 예전에는 이것들이 우선순위 맨 앞에 와서 판정 예산을 전부 소진했다.
        */
       skip_no_candidate_records: true,
-      process_all_unresolved: decidableCount <= UNRESOLVED_FULL_PROCESSING_LIMIT,
-      unresolved_priority: decidableCount > UNRESOLVED_FULL_PROCESSING_LIMIT
-        ? { limit: UNRESOLVED_FULL_PROCESSING_LIMIT, order: "candidates_asc", note: "후보 수가 적은 것부터 — 판정 가능성이 높은 순서" }
+      /*
+       * 2026-09-01 그룹핑 도입: "전부 처리" 여부는 발생 위치 수(decidableCount)가 아니라
+       * 고유 패턴 수(decidableGroupCount)로 판단한다. 같은 패턴이 수백 곳에서 반복되는
+       * 레거시 코드베이스에서 발생 위치 기준으로 판단하면 실제로는 처리 가능한 규모인데도
+       * "부분 처리"로 잘못 떨어진다.
+       */
+      process_all_unresolved: decidableGroupCount <= UNRESOLVED_FULL_PROCESSING_LIMIT,
+      unresolved_priority: decidableGroupCount > UNRESOLVED_FULL_PROCESSING_LIMIT
+        ? { limit: UNRESOLVED_FULL_PROCESSING_LIMIT, order: "candidates_asc", note: "후보 수가 적은 그룹부터 — 판정 가능성이 높은 순서" }
         : null,
+      /* 그룹 단위 배치 크기 — 발생 위치 단위가 아니다. 그룹당 대표 사례 1곳만 읽으므로
+       * 같은 200이라는 숫자가 예전보다 훨씬 넓은 실제 커버리지를 갖는다. */
       unresolved_batch_size: 200,
+      /*
+       * 판정 대상은 _unresolved_groups.json의 groups[]다 — _unresolved.jsonl을 줄 단위로
+       * 순회하지 않는다. 그룹마다 대표 발생 위치(occurrences[0]) 하나만 읽어 판정하고,
+       * 그 그룹의 occurrences[] 전체에 같은 판정을 적용해 add_edge를 occurrence 수만큼
+       * 낸다(나머지 위치는 다시 열지 않는다). 같은 표현식이라도 클래스/모듈에 따라 다르게
+       * 해석될 수 있다고 판단되면(예: 변수 선언 타입이 호출부마다 다름) 그 그룹은
+       * 대표 사례 외 2~3곳을 더 확인하거나, 정말 문맥 의존적이면 occurrences를 나눠
+       * 개별 판정으로 되돌린다 — 이 계약은 병합을 "강제"하지 않고 기본 전략만 제시한다.
+       */
+      dedup_by_pattern: true,
       require_file_line_evidence: true,
       require_module_coverage: true,
       /* digest가 지목한 좌표는 선택 열람이 허용된다. 무제한 재순회와 구분하기 위해 계약에 명시한다. */
@@ -2803,6 +2868,21 @@ export function buildIndex(options) {
       return decidable(a.width) - decidable(b.width) || a.width - b.width || a.order - b.order;
     });
   const decidableCount = prioritized.filter(({ width }) => width >= 2).length;
+  /*
+   * 판정 대상(후보 2개 이상)을 (kind+식별필드+candidates) 패턴으로 묶는다 — groupUnresolvedDecidable
+   * 주석 참조. 그룹 수(decidableGroupCount)가 analyzer의 실제 판정 횟수이자 비용 추정 기준이다.
+   */
+  const decidableItems = prioritized.filter(({ width }) => width >= 2).map(({ item }) => item);
+  const groups = groupUnresolvedDecidable(decidableItems);
+  const decidableGroupCount = groups.length;
+  const groupIdByKey = new Map(groups.map((group) => [JSON.stringify([group.kind, group.key_field, group.candidates]), group.group_id]));
+  const cappedGroups = groups.map((group, index) => {
+    if (index < UNRESOLVED_FULL_PROCESSING_LIMIT) return group;
+    /* 그룹 자체가 상한을 넘는 극단적인 경우에만 occurrences를 생략한다(실측상 거의 발생하지 않음 —
+     * 189/483개 수준이던 실제 프로젝트 대비 이 상한은 훨씬 넉넉하다). */
+    const { occurrences: _drop, ...rest } = group;
+    return { ...rest, occurrences_omitted: true };
+  });
   const cappedUnresolved = prioritized.map(({ item, width }, rank) => {
     const candidates = item.candidates || [];
     if (width < 2) {
@@ -2810,16 +2890,21 @@ export function buildIndex(options) {
       const { candidates: _drop, ...rest } = item;
       return { ...rest, candidate_count: candidates.length, no_candidates: true };
     }
+    const group_id = groupIdByKey.get(unresolvedGroupKey(item));
     if (rank >= UNRESOLVED_FULL_PROCESSING_LIMIT) {
       const { candidates: _drop, ...rest } = item;
-      return { ...rest, candidate_count: candidates.length, candidates_omitted: true };
+      return { ...rest, candidate_count: candidates.length, candidates_omitted: true, group_id };
     }
-    if (candidates.length <= MAX_UNRESOLVED_CANDIDATES) return item;
-    return { ...item, candidates: candidates.slice(0, MAX_UNRESOLVED_CANDIDATES), candidates_truncated: candidates.length - MAX_UNRESOLVED_CANDIDATES };
+    if (candidates.length <= MAX_UNRESOLVED_CANDIDATES) return { ...item, group_id };
+    return { ...item, candidates: candidates.slice(0, MAX_UNRESOLVED_CANDIDATES), candidates_truncated: candidates.length - MAX_UNRESOLVED_CANDIDATES, group_id };
   });
   atomicJson(join(indexDir, "_meta.json"), globalMeta);
-  atomicJson(join(indexDir, "_analysis_input.json"), buildAnalysisInput(output, globalMeta, unresolved, decidableCount, new Map(files.map((item) => [item.rel, item.stats.size]))));
+  atomicJson(join(indexDir, "_analysis_input.json"), buildAnalysisInput(output, globalMeta, unresolved, decidableCount, decidableGroupCount, new Map(files.map((item) => [item.rel, item.stats.size]))));
   writeFileSync(join(indexDir, "_unresolved.jsonl"), cappedUnresolved.map((item) => JSON.stringify(item)).join("\n") + (unresolved.length ? "\n" : ""), "utf8");
+  atomicJson(join(indexDir, "_unresolved_groups.json"), {
+    _meta: { generated_at: generatedAt, generator: "deterministic-indexer", group_count: groups.length, decidable_raw_count: decidableCount, total_occurrences: decidableItems.length },
+    groups: cappedGroups,
+  });
   if (!preservePatch && existsSync(stalePatch)) rmSync(stalePatch);
   return { root, files: files.length, analyzed, reused, tier: normalized.tier, complexity, adapter_coverage: coverage, indexes: Object.keys(output), unresolved: unresolved.length };
 }

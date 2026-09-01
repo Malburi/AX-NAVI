@@ -50,7 +50,17 @@ export function estimateCost(meta, analysisInput) {
   const files = Number(meta?.source_file_count) || 0;
   const tier = meta?.tier || "Full";
   const counts = analysisInput?.counts || {};
-  const decidable = Number(analysisInput?.coverage?.unresolved_decidable_count) || 0;
+  /*
+   * 2026-09-01: build-index.mjs가 같은 (표현식/대상+candidates) 패턴을 그룹핑해
+   * unresolved_decidable_group_count를 함께 내보내기 시작했다 — 레거시 코드베이스는 같은
+   * 애매함이 수백 곳에서 반복되는 경우가 많아(실측: 발생 위치 2,380건이 실제로는 고유
+   * 패턴 185개), 발생 위치 수(unresolved_decidable_count)로 예산을 잡으면 과대추정된다.
+   * 그룹 수가 실제 analyzer 판정 횟수이므로 있으면 그걸 쓰고, 옛 인덱스(그룹 필드 없음)는
+   * 기존 필드로 폴백한다.
+   */
+  const decidable = Number(
+    analysisInput?.coverage?.unresolved_decidable_group_count ?? analysisInput?.coverage?.unresolved_decidable_count,
+  ) || 0;
 
   /* 고정비: 에이전트 지침 + 산출물 왕복 (네임스페이스 호출 기준). */
   const fixed = tier === "Standard" ? 45_000 : 70_000;
