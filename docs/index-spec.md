@@ -32,6 +32,8 @@
 
 실측(2026-08-16 xu25-client): 1,363개 25MB 제외 → 노드 34,674 → 11,120, `dead_code.unused_methods` 31,572 → 9,858. 제외 전에는 노드의 80%가 고아였고 데드코드 리포트가 사실상 전부 거짓양성이었다.
 
+**테스트 파일도 같은 방식으로 제외한다** — `test`/`tests`/`__tests__`/`spec`/`specs` 디렉터리(세그먼트 완전 일치만, `abtest/`처럼 이름이 다르면 걸리지 않음)와 `*Test.java`/`*_test.go`/`test_*.py`/`*.test.ts`/`*Tests.cs` 같은 빌드 도구 강제 규약만 잡는다. 사유는 `by_reason`에 `test-path`·`test-filename`으로 추가되며, `"test_exclude": false`로 끌 수 있다. 업무 코드와 동일하게 전량 노드·엣지가 되어 `call_graph.json`을 부풀리는데 호출 그래프 분석에는 의미가 없는 것이 벤더와 같은 제외 사유다.
+
 ### 소스 파일 인코딩
 
 인덱서는 소스를 무조건 UTF-8로 읽지 않는다. BOM → 파일이 스스로 선언한 인코딩(XML prolog의 `encoding=`, JSP의 `pageEncoding=`, HTML `charset=`) → 유효한 UTF-8 → 레거시 폴백(`euc-kr`) 순으로 판정한다. 선언이 레거시인데 바이트가 유효한 UTF-8 멀티바이트면 실제 저장을 믿고 UTF-8로 읽는다.

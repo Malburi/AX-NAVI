@@ -724,6 +724,75 @@ function validateOrder(){ return true; }
   });
 
   /*
+   * 테스트 파일이 업무 코드와 동일하게 전량 인덱싱돼 call_graph.json을 부풀리던 문제(2026 조사).
+   * 벤더 필터와 같은 원칙 — 디렉터리는 세그먼트 완전 일치, 파일명은 빌드 도구 강제 규약만.
+   */
+  register("테스트 파일·디렉터리를 인덱스에서 제외하고 사유를 기록한다", () => {
+    const root = mkdtempSync(join(tmpdir(), "ax-indexer-test-"));
+    try {
+      // 1) Maven/Gradle 표준 레이아웃 — 디렉터리 세그먼트로 잡힘
+      write(root, "src/test/java/com/foo/OrderServiceTest.java", `class OrderServiceTest { void checkOrder(){ verifyOrder(); } void verifyOrder(){} }`);
+      // 2) JS/TS 파일명 규약
+      write(root, "src/order/OrderService.test.ts", `function testOrder(){ return assertOrder(); }
+function assertOrder(){ return true; }`);
+      // 3) Go 툴체인 강제 규약
+      write(root, "pkg/order/order_test.go", `func TestOrder(t *testing.T) { checkOrder() }
+func checkOrder() {}`);
+      // 4) pytest 관행 (test_ 접두사) — 디렉터리로도 잡히는 경우
+      write(root, "app/tests/test_order.py", `def test_order():
+    return validate_test_order()
+def validate_test_order():
+    return True`);
+      // 5) 세그먼트 이름이 다른 업무 폴더 — 잘리면 안 된다 (벤더의 jquery.add.js와 같은 자리)
+      write(root, "src/main/java/com/foo/abtest/AbTestService.java", `class AbTestService { void runVariant(){ pickBucket(); } void pickBucket(){} }`);
+      // 6) 파일명이 "Test"로 시작하지 않고 우연히 포함만 하는 업무 파일 — 잘리면 안 된다
+      write(root, "src/main/java/com/foo/Testimony.java", `class Testimony { void record(){ persist(); } void persist(){} }`);
+      // 7) 진짜 업무 코드 — 절대 빠지면 안 된다
+      write(root, "src/main/java/com/foo/OrderService.java", `class OrderService { void submitOrder(){ validateOrder(); } void validateOrder(){} }`);
+
+      buildIndex({ root, mode: "init", tier: "Standard", config: null });
+
+      const excluded = json(root, "_meta.json").excluded_sources;
+      assert.equal(excluded.by_reason["test-path"], 2, JSON.stringify(excluded.by_reason)); // src/test/java, app/tests
+      assert.equal(excluded.by_reason["test-filename"], 2, JSON.stringify(excluded.by_reason)); // .test.ts, _test.go
+      assert.ok(!excluded.files.some((f) => f.includes("AbTestService")), `업무 파일이 테스트로 오탐: ${excluded.files}`);
+      assert.ok(!excluded.files.some((f) => f.includes("Testimony")), `업무 파일이 테스트로 오탐: ${excluded.files}`);
+
+      // 클래스 메서드는 symbols.json 최상위가 아니라 class.methods[]에 중첩되므로(owner 있는 메서드),
+      // 노드 유무는 call_graph.json(클래스+메서드를 owner 무관 전부 평탄화)으로 확인한다.
+      const ids = json(root, "call_graph.json").nodes.map((item) => item.id);
+      assert.ok(ids.some((id) => id.includes("submitOrder")), "업무 코드가 인덱싱되지 않음");
+      assert.ok(ids.some((id) => id.includes("pickBucket")), "abtest 업무 폴더가 테스트로 오탐돼 제외됨");
+      assert.ok(ids.some((id) => id.includes("persist")), "Testimony 업무 파일이 테스트로 오탐돼 제외됨");
+      assert.ok(!ids.some((id) => id.includes("checkOrder")), "Maven 표준 테스트 경로가 인덱싱됨");
+      assert.ok(!ids.some((id) => id.includes("testOrder")), "*.test.ts가 인덱싱됨");
+      assert.ok(!ids.some((id) => id.includes("TestOrder")), "Go _test.go가 인덱싱됨");
+      assert.ok(!ids.some((id) => id.includes("test_order") || id.includes("validate_test_order")), "pytest tests/ 디렉터리가 인덱싱됨");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  register("test_exclude: false면 테스트 파일 제외를 끌 수 있다", () => {
+    const root = mkdtempSync(join(tmpdir(), "ax-indexer-test-optout-"));
+    try {
+      write(root, "src/test/java/com/foo/OrderServiceTest.java", `class OrderServiceTest { void checkOrder(){} }`);
+      // loadConfig()는 config를 파일 경로로만 받는다(_workspace/indexer-config.json 기본값) — 객체 직접 전달 불가.
+      write(root, "_workspace/indexer-config.json", JSON.stringify({ test_exclude: false }));
+
+      buildIndex({ root, mode: "init", tier: "Standard", config: null });
+
+      const excluded = json(root, "_meta.json").excluded_sources;
+      assert.equal(excluded.by_reason["test-path"] || 0, 0, JSON.stringify(excluded.by_reason));
+
+      const ids = json(root, "call_graph.json").nodes.map((item) => item.id);
+      assert.ok(ids.some((id) => id.includes("checkOrder")), "test_exclude: false인데도 제외됨");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  /*
    * 2026-08-16 실사고 회귀 — DDL이 없는 레거시(.sql 0개, 쿼리는 전부 XML)에서 schema.json이
    * tables=0으로 비던 문제. sql_usage에는 이미 테이블명이 들어 있으므로 그것을 집계한다.
    */

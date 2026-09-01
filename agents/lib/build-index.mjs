@@ -118,6 +118,14 @@ const VENDOR_VERSIONED = /(?:^|\/)[a-z][\w.]*?-\d+\.\d+[\w.]*\.(?:js|css)$/i;
 /* 미니파이·번들 산출물임이 파일명에 드러난 경우. 이건 이름만으로 확실하다. */
 const VENDOR_FILE = /(?:\.min\.(?:js|css)|[-.]min\.[a-z0-9]+|\.bundle\.js|\.pack\.js)$/i;
 const MINIFIED_EXTENSIONS = new Set([".js", ".css", ".mjs", ".cjs"]);
+/*
+ * 테스트 파일도 벤더와 같은 이유로 노이즈다 — 업무 코드와 동일하게 전량 노드/엣지가 되어
+ * call_graph.json을 부풀리지만 실제 호출 그래프 분석에는 의미가 없다.
+ * 디렉터리는 세그먼트 완전 일치만 잡는다(VENDOR_DIR과 같은 원칙) — "abtest/"처럼 이름이
+ * 다르면 걸리지 않는다. 파일명은 빌드 도구가 강제하는 규약만 써서 오탐 여지를 없앤다.
+ */
+const TEST_DIR = /(?:^|\/)(?:test|tests|__tests__|spec|specs)(?:\/|$)/i;
+const TEST_FILE = /(?:(?:Test|Tests|TestCase|IT)\.(?:java|kt|cs)$|_test\.go$|(?:^|\/)test_[^/]+\.py$|_test\.py$|\.(?:test|spec)\.[jt]sx?$)/;
 /* 줄당 평균 이 길이를 넘으면 사람이 쓴 소스가 아니다. 손으로 쓴 JS는 보통 30~60자다. */
 const MINIFIED_AVG_LINE = 250;
 /* 이보다 작은 파일은 굳이 열어보지 않는다 — 미니파이 번들은 사실상 전부 이보다 크다. */
@@ -155,6 +163,14 @@ function vendorReason(rel, full, size, ext, config) {
     const minified = minifiedReason(full, size);
     if (minified) return `minified:${minified}`;
   }
+  return null;
+}
+
+/* 파일 전체를 제외하므로 그 파일에서 나온 노드/엣지가 통째로 안 생겨 dangling edge 위험이 없다. */
+function testReason(rel, config) {
+  if (config?.test_exclude === false) return null;
+  if (TEST_DIR.test(rel)) return "test-path";
+  if (TEST_FILE.test(rel)) return "test-filename";
   return null;
 }
 
@@ -316,7 +332,7 @@ function listFiles(root, includePaths = [""], config = null) {
       if (!isIncluded(rel, includePaths)) continue;
       const stats = statSync(full);
       if (stats.size > MAX_FILE_BYTES) continue;
-      const reason = vendorReason(rel, full, stats.size, ext, config);
+      const reason = vendorReason(rel, full, stats.size, ext, config) || testReason(rel, config);
       if (reason) { excluded.push({ file: rel, reason, bytes: stats.size }); continue; }
       output.push({ full, rel, stats });
     }
@@ -382,7 +398,16 @@ function loadConfig(root, configArg) {
   const initLayout = allowedLayouts.has(config.init_layout)
     ? config.init_layout
     : (config.workspace_mode ? "monorepo" : (includePaths.some(Boolean) ? "selected-paths" : "single-root"));
-  return { init_layout: initLayout, workspace_mode: Boolean(config.workspace_mode), workspaces, include_paths: includePaths.length ? includePaths : [""] };
+  return {
+    init_layout: initLayout, workspace_mode: Boolean(config.workspace_mode), workspaces,
+    include_paths: includePaths.length ? includePaths : [""],
+    /*
+     * vendor_exclude/test_exclude 이스케이프 해치가 이 반환 객체에서 빠져 있어 indexer-config.json에
+     * "vendor_exclude": false를 둬도 조용히 무시되던 버그(2026 발견) — vendorReason/testReason이
+     * 받는 config가 바로 이 객체라 여기 없으면 두 함수 모두 항상 undefined만 본다.
+     */
+    vendor_exclude: config.vendor_exclude, test_exclude: config.test_exclude,
+  };
 }
 
 function workspaceFor(rel, config) {
