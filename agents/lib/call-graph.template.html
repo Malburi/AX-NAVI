@@ -78,6 +78,7 @@
     <div class="filter-spacer"></div>
     <button id="findBtn" class="tool-btn">찾기</button>
     <button id="resetHighlightBtn" class="tool-btn">강조 초기화</button>
+    <button id="collapseToHubBtn" class="tool-btn">허브 뷰로</button>
     <button id="physicsToggle" class="tool-btn">물리엔진</button>
   </div>
 
@@ -153,8 +154,38 @@
     const edgesData = {{EDGES_DATA}};
     const META = {{META}};
 
+    // 타입 필터(activeTypes)와 초기 축소 뷰(expandedIds)는 DataSet을 만들기 전에 있어야 한다 —
+    // 둘 다 노드의 hidden 여부를 결정하는 데 쓰인다.
+    const allTypes = [...new Set(nodesData.map(n => nodeTypeMap[n.id]))];
+    const activeTypes = new Set(allTypes);
+
+    // 대형 그래프는 wiki_generator.py가 baked한 extra.initial(허브+직접 이웃)만 초기에 표시한다.
+    // 나머지는 전체 데이터에 그대로 남아있고 클릭·검색으로 펼쳐진다 — 데이터 손실은 없다.
+    const expandedIds = new Set(nodesData.filter(n => n.initial).map(n => n.id));
+    const initialExpandedSize = expandedIds.size;
+
+    function isVisible(id) {
+      return activeTypes.has(nodeTypeMap[id]) && expandedIds.has(id);
+    }
+
+    function syncVisibility() {
+      nodes.update(nodesData.map(n => ({ id: n.id, hidden: !isVisible(n.id) })));
+    }
+
+    // 노드를 펼친다 — 자기 자신 + 직접 연결된 이웃(양방향)을 보이게 한다. vis-network는 연결된
+    // 노드가 hidden이면 엣지도 자동으로 숨기므로 엣지 쪽은 손댈 필요가 없다.
+    function revealNeighbors(id) {
+      const before = expandedIds.size;
+      expandedIds.add(id);
+      edgesData.forEach(e => {
+        if (e.from === id) expandedIds.add(e.to);
+        if (e.to === id) expandedIds.add(e.from);
+      });
+      if (expandedIds.size !== before) syncVisibility();
+    }
+
     const container = document.getElementById('graph');
-    const nodes = new vis.DataSet(nodesData);
+    const nodes = new vis.DataSet(nodesData.map(n => ({ ...n, hidden: !isVisible(n.id) })));
     const edges_ds = new vis.DataSet(edgesData);
     // 노드·엣지가 많으면(임계값은 wiki_generator.py에서 결정) 기본 물리엔진 OFF + 동적 엣지
     // 스무딩(가장 비싼 렌더 옵션) OFF — 대형 그래프에서 로딩이 급격히 느려지는 걸 막는다.
@@ -247,6 +278,7 @@
         dc.innerHTML = '노드를 클릭하세요.';
         return;
       }
+      revealNeighbors(params.nodes[0]);
       showDetail(params.nodes[0]);
     });
 
@@ -263,6 +295,16 @@
 
     document.getElementById('resetHighlightBtn').addEventListener('click', resetHighlight);
 
+    document.getElementById('collapseToHubBtn').addEventListener('click', () => {
+      expandedIds.clear();
+      nodesData.filter(n => n.initial).forEach(n => expandedIds.add(n.id));
+      syncVisibility();
+    });
+    // 축소 뷰가 적용되지 않은(전부가 초기 표시인) 소형 그래프에서는 이 버튼이 아무 효과가 없으므로 숨긴다.
+    if (initialExpandedSize >= nodesData.length) {
+      document.getElementById('collapseToHubBtn').style.display = 'none';
+    }
+
     document.getElementById('physicsToggle').addEventListener('click', function() {
       physicsOn = !physicsOn;
       syncPhysicsBtn();
@@ -277,6 +319,7 @@
         return n.id.toLowerCase().includes(q) || n.label.toLowerCase().includes(q) || (m.file || '').toLowerCase().includes(q);
       });
       if (hit) {
+        revealNeighbors(hit.id);
         network.focus(hit.id, { scale: 1.35, animation: true });
         showDetail(hit.id);
       }
@@ -285,9 +328,6 @@
     document.getElementById('searchInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') document.getElementById('findBtn').click();
     });
-
-    const allTypes = [...new Set(nodesData.map(n => nodeTypeMap[n.id]))];
-    const activeTypes = new Set(allTypes);
 
     document.querySelectorAll('.filter-btn[data-type]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -303,7 +343,7 @@
         }
         nodesData.forEach(n => {
           const t = nodeTypeMap[n.id];
-          nodes.update({ id: n.id, hidden: !activeTypes.has(t), color: nodeColor(t) });
+          nodes.update({ id: n.id, hidden: !isVisible(n.id), color: nodeColor(t) });
         });
       });
     });

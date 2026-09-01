@@ -673,6 +673,27 @@ def main():
         total_nodes = len(raw_graph.get("nodes", []))
         hub_threshold = max(5, int(total_nodes * 0.15))
 
+        # 대형 그래프는 초기 렌더링에 노드 전량을 vis-network에 올려 브라우저가 버벅였다(상한 없음, 실측
+        # call_graph.json 36MB). 물리엔진 OFF 기준(300)과 같은 경계에서, in-degree 상위 허브 + 그 직접
+        # 이웃만 초기에 표시하고 나머지는 클릭·검색으로 확장한다(전체 데이터는 그대로 보존, 손실 없음).
+        # hub_threshold(위, 배지 크기용)와는 별개 — 대형 그래프에서 hub_threshold는 너무 높아져
+        # 사실상 0개가 되므로 순위 기반으로 별도 계산한다.
+        SMALL_GRAPH_THRESHOLD = 300
+        if total_nodes <= SMALL_GRAPH_THRESHOLD:
+            initial_ids = None  # 축소 없음 — 현재와 동일하게 전부 표시
+        else:
+            initial_hub_count = min(60, max(20, total_nodes // 50))
+            ranked = sorted(in_degree.items(), key=lambda item: (-item[1], item[0]))  # 동률은 id로 결정론 확보
+            hub_ids = {nid for nid, _ in ranked[:initial_hub_count]}
+            neighbor_ids = set()
+            for edge_item in raw_graph.get("edges", []):
+                f, t = edge_item.get("from"), edge_item.get("to")
+                if f in hub_ids:
+                    neighbor_ids.add(t)
+                if t in hub_ids:
+                    neighbor_ids.add(f)
+            initial_ids = hub_ids | neighbor_ids
+
         dead_code = {}
         if dead_code_json:
             # dead_code.json 스키마 키는 unused_methods (docs/index-spec.md) — "dead_code"가 아님.
@@ -738,6 +759,8 @@ def main():
             if nid in dead_code:
                 extra["opacity"] = 0.4
 
+            extra["initial"] = initial_ids is None or nid in initial_ids
+
             nodes_data.append({
                 "id": nid,
                 "label": label,
@@ -800,6 +823,12 @@ def main():
         legend_html += '<div class="legend-note" style="opacity:.55">☠ 데드 코드 후보</div>\n        '
         if any(e["type"] == "reflect" for e in edges_data):
             legend_html += '<div class="legend-note" style="color:#F5A623">┄┄ 리플렉션 엣지(신뢰도 낮음, 검증 권장)</div>\n        '
+        if initial_ids is not None:
+            initial_count = sum(1 for n in nodes_data if n["extra"].get("initial"))
+            legend_html += (
+                f'<div class="legend-note">🔍 대형 그래프 — 허브+이웃 {initial_count}개만 기본 표시, '
+                f'나머지 {total_nodes - initial_count}개는 검색·클릭으로 확장</div>\n        '
+            )
 
         hub_count = sum(1 for n in nodes_data if n["extra"].get("size") == 28)
         dead_count = sum(1 for n in nodes_data if n["id"] in dead_code)
