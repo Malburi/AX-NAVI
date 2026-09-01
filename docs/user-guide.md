@@ -45,7 +45,7 @@
 최신 Claude Code에서 어느 프로젝트에서나 실행:
 
 ```
-/plugin marketplace add Malburi/total_ito
+/plugin marketplace add Malburi/total-ito-v2
 /plugin install total-ito@total-ito
 ```
 
@@ -80,7 +80,7 @@
 터미널에서 비대화형으로 설치할 수도 있다.
 
 ```bash
-claude plugin marketplace add Malburi/total_ito
+claude plugin marketplace add Malburi/total-ito-v2
 claude plugin install total-ito@total-ito --scope user
 claude plugin details total-ito@total-ito
 ```
@@ -725,4 +725,4 @@ harness-init이 생성하는 프로젝트 전용 가이드. Claude가 매 대화
 
 ---
 
-*Total ITO v0.18.1 · [GitHub](https://github.com/Malburi/total_ito)*
+*Total ITO v0.18.1 · [GitHub](https://github.com/Malburi/total-ito-v2)*

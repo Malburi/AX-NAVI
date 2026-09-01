@@ -58,7 +58,7 @@ Java/Spring, JavaScript/TypeScript(Vue·React), Python, Go, C#/.NET의 결정적
 Claude Code 어느 프로젝트에서나 실행:
 
 ```
-/plugin marketplace add neoruler001/total_ito
+/plugin marketplace add Malburi/total-ito-v2
 ```
 
 ### 2단계 — 플러그인 설치
@@ -98,7 +98,7 @@ Claude Code 어느 프로젝트에서나 실행:
 터미널에서 비대화형으로 설치하려면 다음 명령도 사용할 수 있습니다.
 
 ```bash
-claude plugin marketplace add neoruler001/total_ito
+claude plugin marketplace add Malburi/total-ito-v2
 claude plugin install total-ito@total-ito --scope user
 claude plugin details total-ito@total-ito
 ```
