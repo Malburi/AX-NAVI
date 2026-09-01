@@ -99,6 +99,20 @@ writer가 할 일은 **`_workspace/claude_md_fields.json`에 다음 필드만 �
 
 생성 규칙은 기존 harness-new writer와 동일. (description 트리거는 한국어 ≥3개 / 영어 ≥2개 / 스택 키워드 ≥1개 충족.)
 
+**세 파일 모두 frontmatter에 `name`·`description`·`model` 세 필드를 반드시 포함한다** (validator.md
+"3. Frontmatter 품질" 체크가 `model` 필드 누락을 FAIL로 잡는다 — 2026-09-01 이전에는 이 지침이 없어
+실사용 세션에서 writer가 세 파일 모두 `model`을 빠뜨려 신뢰도 점수가 30점 깎였다). trace.md·
+scaffolder.md·find-logic.md는 조회·체크리스트 성격의 단순 작업이므로 특별한 사유가 없는 한 셋 다
+`model: sonnet`으로 쓴다:
+
+```yaml
+---
+name: trace
+description: [한국어 ≥3개 + 영어 ≥2개 + 스택 키워드 ≥1개를 충족하는 설명]
+model: sonnet
+---
+```
+
 기존 규칙 요약:
 - **trace.md** — 요청 흐름 단계별 탐색 절차 (스택별 분기)
 - **scaffolder.md** — 신규 기능 파일 체크리스트 (기본형, 패턴 강제는 scaffold-feature가 담당)

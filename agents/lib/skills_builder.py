@@ -72,6 +72,24 @@ def _layer_label(filename):
     return base.replace("_", " ").title()
 
 
+def _is_legacy_static_js(root, analyzer_report_text):
+    """client_index.json의 구조화된 `type` 필드를 우선 확인한다 — analyzer_report_text는
+    LLM이 자유 서술한 마크다운이라 "Legacy Static JS"(공백 있음) 표기가 흔한데, 예전에는
+    공백 없는 리터럴 "LegacyStaticJS" 문자열만 찾아서 실사용 세션에서 client_pattern.md가
+    한 번도 자동 추가되지 못했다(2026-09-01 발견). client_index.json이 없는 경우에만
+    자유 서술 텍스트를 공백·대소문자 무시하고 폴백으로 확인한다."""
+    client_index_path = os.path.join(root, "_workspace", "index", "client_index.json")
+    if os.path.isfile(client_index_path):
+        try:
+            with open(client_index_path, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+            return data.get("type") == "LegacyStaticJS"
+        except (OSError, json.JSONDecodeError):
+            pass
+    normalized = re.sub(r"\s+", "", analyzer_report_text or "").lower()
+    return "legacystaticjs" in normalized
+
+
 def deploy_pattern_skeletons(root, analyzer_report_text, pattern_files):
     """writer.md '12+. patterns/ 파일 스켈레톤'의 고정 헤더 포맷으로 스켈레톤을 생성한다.
     이미 pattern-extractor가 채운(스켈레톤 마커가 없는) 파일은 덮어쓰지 않는다."""
@@ -79,7 +97,7 @@ def deploy_pattern_skeletons(root, analyzer_report_text, pattern_files):
     os.makedirs(patterns_dir, exist_ok=True)
 
     names = list(pattern_files or [])
-    if "LegacyStaticJS" in (analyzer_report_text or "") and "client_pattern.md" not in names:
+    if _is_legacy_static_js(root, analyzer_report_text) and "client_pattern.md" not in names:
         names.append("client_pattern.md")
 
     project_name = os.path.basename(os.path.normpath(root)) or "프로젝트"
