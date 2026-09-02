@@ -88,6 +88,7 @@
     <div id="graph"></div>
     <div id="detail">
       <h3>그래프 정보</h3>
+      <div id="viewModeLabel" style="font-size:12px;color:#9fd3ff;font-weight:600;margin-bottom:10px;"></div>
       {{STAT_SUMMARY}}
       <h3>범례</h3>
       <div class="legend-grid">
@@ -334,6 +335,23 @@
       document.getElementById('flatViewBtn').style.display = inFn ? 'none' : '';
       const totalForScope = currentModule === null ? nodesData.length : moduleMemberIds(currentModule).length;
       document.getElementById('collapseToHubBtn').style.display = (inFn && collapseTargetIds.size < totalForScope) ? '' : 'none';
+      updateViewModeLabel();
+    }
+
+    // 우측 정보 패널 상단에 현재 보고 있는 레벨을 표시한다 — "전체 모듈 개요" 또는
+    // "[모듈명] 내부 — 노드 N개"(전체 함수 그래프(고급)일 때는 그 사실을 그대로 표시).
+    function updateViewModeLabel() {
+      const el = document.getElementById('viewModeLabel');
+      if (!el) return;
+      if (currentView === 'module') {
+        el.textContent = '현재 모드: 전체 모듈 개요';
+      } else if (currentModule === null) {
+        el.textContent = '현재 모드: 전체 함수 그래프(고급)';
+      } else {
+        const m = moduleById.get(currentModule);
+        const memberCount = m ? (m.member_count ?? m.count) : moduleMemberIds(currentModule).length;
+        el.textContent = `현재 모드: [${currentModule}] 내부 — 노드 ${memberCount}개`;
+      }
     }
 
     function renderModuleOverview() {

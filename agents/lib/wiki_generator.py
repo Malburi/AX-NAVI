@@ -518,7 +518,39 @@ def _looks_generated(node):
     return bool(tokens & _GENERATED_CODE_TOKENS)
 
 
-def module_candidate(node, vis_type):
+def compute_common_path_prefix(nodes):
+    """
+    전체 노드의 file 경로들이 공유하는 최상위 디렉터리 접두사(세그먼트 리스트)를 동적으로
+    찾는다. 프로젝트마다 최상위 폴더 구조가 다르므로(WEB-INF/jsp/, WEB-INF/src/java/,
+    src/main/java/ 등) 하드코딩하지 않고 실제 파일 경로들의 최장 공통 접두사를 계산해
+    module_candidate()이 그 다음 단계 디렉터리부터 모듈 후보로 쓸 수 있게 한다.
+    _MODULE_CONTAINER_PREFIXES(고정 단어 목록)와는 상호 보완 관계다 — 이건 "이
+    프로젝트 전체가 실제로 공유하는" 접두사라 목록에 없는 낯선 빌드 레이아웃에도 적응하고,
+    고정 목록은 공통 접두사 밑에서도 반복되는(예: 일부 트리에만 있는 src/java) 잔여 컨테이너
+    폴더를 잡아낸다 — 어느 한쪽만으로는 부족하다(아래 module_candidate 참고).
+    """
+    seg_lists = []
+    for n in nodes:
+        p = (n.get("file") or "").replace("\\", "/")
+        segs = [s for s in p.split("/") if s]
+        if len(segs) >= 2:  # 마지막 세그먼트(파일명)는 접두사 계산에서 제외
+            seg_lists.append(segs[:-1])
+    if not seg_lists:
+        return []
+    prefix = seg_lists[0]
+    for segs in seg_lists[1:]:
+        common_len = 0
+        for a, b in zip(prefix, segs):
+            if a != b:
+                break
+            common_len += 1
+        prefix = prefix[:common_len]
+        if not prefix:
+            break
+    return prefix
+
+
+def module_candidate(node, vis_type, common_prefix=None):
     """
     노드 하나를 모듈/패키지 단위로 묶기 위한 후보를 만든다. (is_final, value) 튜플을
     반환한다 — is_final=True면 value는 바로 쓸 확정 모듈 키(str). is_final=False면
@@ -563,9 +595,19 @@ def module_candidate(node, vis_type):
     segments = [s for s in path.split("/") if s]
     body = segments[:-1]  # 파일명 제외
 
+    # 1순위 판정은 원본 경로 전체를 본다 — common_prefix로 먼저 잘라내면, 프로젝트
+    # 전체가 우연히 dotted 폴더 하나를 공유 루트로 쓰는 드문 경우에 그 폴더까지
+    # 함께 잘려나가 1순위가 발동을 못 할 수 있다.
     dotted = [s for s in body if s.count(".") >= 2]
     if dotted:
         return True, dotted[-1]
+
+    # 2순위(Java류)에서만 공통 접두사를 먼저 제거한다 — 프로젝트마다 다른 최상위
+    # 빌드 레이아웃(WEB-INF/src/java, src/main/java 등)에 적응한다.
+    if common_prefix:
+        cp_len = len(common_prefix)
+        if body[:cp_len] == common_prefix:
+            body = body[cp_len:]
 
     trimmed = list(body)
     while trimmed and trimmed[-1].lower() in _MODULE_LAYER_NAMES:
@@ -935,6 +977,12 @@ def main():
         if in_degree_sorted_desc:
             top5_pct_rank = max(1, int(len(in_degree_sorted_desc) * 0.05))
             hub_threshold = max(3, in_degree_sorted_desc[top5_pct_rank - 1])
+            # 간선이 노드 수에 비례할 뿐 밀도가 안 오르는 희소 그래프(트리형 정적 호출그래프
+            # 등)는 5%ile 값보다 최솟값 3이 항상 더 커서 위 max()가 실제 최대 in-degree보다도
+            # 높은 임계값을 만든다 — 그러면 어떤 노드도 조건을 못 채워 허브가 다시 0개로
+            # 표시된다(실측: xu43-client, 노드 24671/엣지 21814, 최대 in-degree 3 미만).
+            # 실제 데이터가 낼 수 있는 최댓값을 넘지 않도록 clamp해 최소 1개는 허브로 잡히게 한다.
+            hub_threshold = min(hub_threshold, in_degree_sorted_desc[0])
         else:
             hub_threshold = 3
 
@@ -986,6 +1034,11 @@ def main():
             layout_positions = _place_remaining_near_neighbors(
                 visible_ids - set(layout_positions), visible_edges, layout_positions, seed=42
             )
+
+        # 모든 노드의 file 경로가 공유하는 최상위 디렉터리를 동적으로 찾아 module_candidate()에
+        # 넘긴다 — 프로젝트마다 최상위 폴더 구조(WEB-INF/jsp/, WEB-INF/src/java/, src/main/java/
+        # 등)가 달라 하드코딩할 수 없다.
+        common_path_prefix = compute_common_path_prefix(raw_graph.get("nodes", []))
 
         dead_code = {}
         if dead_code_json:
@@ -1060,7 +1113,7 @@ def main():
 
             extra["initial"] = initial_ids is None or nid in initial_ids
 
-            is_final, candidate = module_candidate(node, vis_type)
+            is_final, candidate = module_candidate(node, vis_type, common_path_prefix)
             if is_final:
                 node_module[node.get("id")] = candidate
                 extra["module"] = candidate
@@ -1132,33 +1185,43 @@ def main():
         # 피드백에 따라, 기본 화면을 모듈(패키지) 단위 요약 그래프로 바꾼다. 실제 함수 단위
         # 그래프(nodesData/edgesData)는 그대로 유지되고, 사용자가 모듈을 클릭하면 그 모듈
         # 내부만 보여주는 드릴다운 화면으로 전환된다(call-graph.template.html에서 처리).
-        module_node_count = {}
-        for m in node_module.values():
-            module_node_count[m] = module_node_count.get(m, 0) + 1
+        #
+        # SMALL_GRAPH_THRESHOLD(위에서 정의, 초기 허브+이웃 축소와 동일 경계) 이하인 작은
+        # 그래프는 모듈 개요를 만들 필요가 없다 — 어차피 전체를 한 화면에 그려도 읽을 수
+        # 있는 크기라, 괜히 2단계 클릭을 강제하면 UX만 나빠진다. 이 경우 MODULE_NODES를
+        # 빈 배열로 둬서 템플릿이 자동으로 기존 단일 레벨 그래프로 폴백하게 한다
+        # (call-graph.template.html의 `if (MODULE_NODES.length >= 2)` 분기).
+        if total_nodes > SMALL_GRAPH_THRESHOLD:
+            module_node_count = {}
+            for m in node_module.values():
+                module_node_count[m] = module_node_count.get(m, 0) + 1
 
-        module_edge_agg = {}
-        for e in raw_graph.get("edges", []):
-            fm = node_module.get(e.get("from"))
-            tm = node_module.get(e.get("to"))
-            if fm and tm and fm != tm:
-                key = (fm, tm)
-                module_edge_agg[key] = module_edge_agg.get(key, 0) + 1
+            module_edge_agg = {}
+            for e in raw_graph.get("edges", []):
+                fm = node_module.get(e.get("from"))
+                tm = node_module.get(e.get("to"))
+                if fm and tm and fm != tm:
+                    key = (fm, tm)
+                    module_edge_agg[key] = module_edge_agg.get(key, 0) + 1
 
-        module_ids_sorted = sorted(module_node_count.keys())
-        module_layout_edges = list(module_edge_agg.keys())
-        # 모듈 그래프는 보통 수십 개 수준이라 전량 FR로 계산해도 충분히 빠르다.
-        module_positions = compute_layout(module_ids_sorted, module_layout_edges, iterations=150, seed=7, target_spacing=180.0)
+            module_ids_sorted = sorted(module_node_count.keys())
+            module_layout_edges = list(module_edge_agg.keys())
+            # 모듈 그래프는 보통 수십 개 수준이라 전량 FR로 계산해도 충분히 빠르다.
+            module_positions = compute_layout(module_ids_sorted, module_layout_edges, iterations=150, seed=7, target_spacing=180.0)
 
-        module_nodes_js = []
-        for m in module_ids_sorted:
-            x, y = module_positions.get(m, (0.0, 0.0))
-            module_nodes_js.append(json.dumps({"id": m, "label": m, "count": module_node_count[m], "x": x, "y": y}))
-        module_edges_js = [
-            json.dumps({"from": fm, "to": tm, "count": cnt})
-            for (fm, tm), cnt in sorted(module_edge_agg.items())
-        ]
-        module_nodes_array_str = "[\n      " + ",\n      ".join(module_nodes_js) + "\n    ]" if module_nodes_js else "[]"
-        module_edges_array_str = "[\n      " + ",\n      ".join(module_edges_js) + "\n    ]" if module_edges_js else "[]"
+            module_nodes_js = []
+            for m in module_ids_sorted:
+                x, y = module_positions.get(m, (0.0, 0.0))
+                module_nodes_js.append(json.dumps({"id": m, "label": m, "count": module_node_count[m], "x": x, "y": y}))
+            module_edges_js = [
+                json.dumps({"from": fm, "to": tm, "count": cnt})
+                for (fm, tm), cnt in sorted(module_edge_agg.items())
+            ]
+            module_nodes_array_str = "[\n      " + ",\n      ".join(module_nodes_js) + "\n    ]" if module_nodes_js else "[]"
+            module_edges_array_str = "[\n      " + ",\n      ".join(module_edges_js) + "\n    ]" if module_edges_js else "[]"
+        else:
+            module_nodes_array_str = "[]"
+            module_edges_array_str = "[]"
 
         btn_labels = {
             "view": "🖥 뷰", "vue_view": "🖥 Vue 뷰", "endpoint": "⚡ API 엔드포인트",
