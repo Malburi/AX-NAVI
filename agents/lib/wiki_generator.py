@@ -470,6 +470,28 @@ def merge_db_tables_into_graph(raw_graph, schema_json, sql_usage_json):
     return {"nodes": nodes, "edges": edges}, {"table_nodes": len(table_node_ids), "query_edges": len(seen_edges)}
 
 
+# 파일 경로 마지막(파일 바로 위) 세그먼트로 흔히 쓰이는 아키텍처 계층 이름 — 그대로 모듈로
+# 쓰면 서로 무관한 기능들이 전부 이 이름 하나로 뭉쳐버린다(예: eduport/announce/service와
+# eduport/board/service가 둘 다 "service"가 됨). derive_module()의 2순위 규칙에서 걷어낸다.
+_MODULE_LAYER_NAMES = {
+    "service", "services", "dao", "daos", "repository", "repositories",
+    "mapper", "mappers", "action", "actions", "controller", "controllers",
+    "handler", "handlers", "resource", "resources", "router", "routers",
+    "view", "views", "serializer", "serializers", "schema", "schemas",
+    "validator", "validators", "impl", "imp", "util", "utils", "helper",
+    "helpers", "model", "models", "dto", "dtos", "entity", "entities",
+    "vo", "bean", "beans", "form", "forms", "exception", "exceptions",
+    "filter", "filters", "config", "configuration", "constant", "constants",
+    "middleware", "middlewares",
+}
+# 빌드/소스루트 관례로 어느 프로젝트에나 반복되는, 그 자체로는 모듈 의미가 없는 폴더.
+_MODULE_CONTAINER_PREFIXES = {
+    "src", "main", "java", "kotlin", "test", "tests", "webapp", "web-inf",
+    "classes", "webcontent", "bin", "obj", "target", "build", "app", "source",
+    "node_modules",
+}
+
+
 def derive_module(node, vis_type):
     """
     노드 하나를 모듈/패키지 단위로 묶기 위한 키를 만든다. DB 테이블·외부 시스템은
@@ -477,10 +499,17 @@ def derive_module(node, vis_type):
 
     파일 경로 기준으로 판단한다(dotted id 기준이 아님) — analyzer가 만드는 `trigger:` id는
     "trigger:UI Project/HPS.QS/HPS.QS.QB/00 검사요청/HPSQB00030(...).Designer"처럼 파일
-    경로 자체가 id라, dotted-id 분리 방식으로는 파일마다 별개 모듈이 되어(실측 224개 중
-    상당수가 파일당 1개짜리 trigger 모듈) 개요로서 무의미해졌다. 경로 세그먼트 중 점(.)을
-    2개 이상 포함한(네임스페이스형, 예: "HPS.QS.QA") 것 중 가장 안쪽 것을 모듈로 쓰면
-    trigger 노드와 일반 노드가 같은 폴더 밑에 있는 한 항상 같은 모듈로 묶인다.
+    경로 자체가 id라, dotted-id 분리 방식으로는 파일마다 별개 모듈이 되기 때문이다.
+
+    1순위: 폴더 이름 자체가 네임스페이스형(점 2개 이상, 예: "HPS.QS.QA")인 .NET류 관례 —
+    이 규칙이 매치되면 그대로 쓴다(HPS 실사용 검증 완료, 아래 2순위는 이 매치가 하나도
+    없을 때만 평가되므로 이 경로의 동작은 바뀌지 않는다).
+
+    2순위: Java/Kotlin류처럼 패키지 세그먼트마다 폴더가 하나씩인 관례 — 실측(xu43-server,
+    Struts+coperframe 구조) 결과 마지막 폴더가 계층 이름(service/dao/action 등)인 경우가
+    압도적으로 많아, 그것부터 안 떼면 eduport의 announce/board/code/edi 같은 서로 무관한
+    기능이 전부 "service" 하나로 뭉친다. 계층 이름과 빌드 컨테이너 폴더를 걷어낸 뒤 남는
+    마지막 1~2개 세그먼트를 도메인 모듈로 삼는다.
     """
     if vis_type in ("db_table", "mssql_table"):
         return "🗄 DB 테이블"
@@ -492,11 +521,25 @@ def derive_module(node, vis_type):
         path = nid[len("trigger:"):]
     path = path.replace("\\", "/")
     segments = [s for s in path.split("/") if s]
-    candidates = [s for s in segments[:-1] if s.count(".") >= 2]
-    if candidates:
-        return candidates[-1]
-    if len(segments) >= 2:
-        return segments[-2]
+    body = segments[:-1]  # 파일명 제외
+
+    dotted = [s for s in body if s.count(".") >= 2]
+    if dotted:
+        return dotted[-1]
+
+    trimmed = list(body)
+    while trimmed and trimmed[-1].lower() in _MODULE_LAYER_NAMES:
+        trimmed.pop()
+    while trimmed and (trimmed[0].lower() in _MODULE_CONTAINER_PREFIXES or trimmed[0].lower().endswith(" project")):
+        trimmed.pop(0)
+    if not trimmed:
+        trimmed = body
+    if len(trimmed) >= 2:
+        return ".".join(trimmed[-2:])
+    if trimmed:
+        return trimmed[-1]
+
+    # 3순위: 파일/경로 정보 자체가 없는 극히 드문 경우 — id의 dotted prefix로 최후 폴백
     parts = nid.split(".")
     if len(parts) >= 3:
         return ".".join(parts[:-2])
