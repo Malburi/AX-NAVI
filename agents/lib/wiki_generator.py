@@ -1010,11 +1010,20 @@ def main():
         # 물리엔진/동적 엣지 스무딩 on-off는 "전체 데이터셋 크기"가 아니라 "초기에 실제로
         # 화면에 보이는(hidden=false) 노드/엣지 수" 기준이어야 한다 — vis-network는 hidden
         # 노드를 물리 시뮬레이션에서 제외한다. 위에서 이미 계산한 visible_ids/visible_edges를
-        # 재사용한다(중복 계산 방지). 이제 노드는 위에서 좌표가 구워져 있으므로, 물리엔진을
-        # 켜도 나쁜 무작위 원이 아니라 이미 괜찮은 배치에서 미세 조정만 하게 된다.
+        # 재사용한다(중복 계산 방지).
+        #
+        # 주의: 물리엔진 기본 ON 임계값은 LARGE_VISIBLE_SET_CAP(1500, 파이썬 사전 배치의
+        # O(n^2) 계산 상한 — 생성 시점 1회 비용)과 절대 같은 값을 쓰면 안 된다. 실측 결과
+        # 955개 노드에서도 forceAtlas2Based stabilization(250 iteration)이 브라우저 메인
+        # 스레드를 오래 막아 화면이 안 그려질 정도로 느렸다(2026-09 사용자 리포트). 노드는
+        # 이미 위에서 좌표가 구워져 있어 물리엔진 없이도 읽을 수 있는 배치가 보장되므로,
+        # 대형 그래프는 SMALL_GRAPH_THRESHOLD와 동일한 훨씬 보수적인 기준으로 기본 OFF를
+        # 유지하고, 필요하면 사용자가 토글로 직접 켜게 한다(이미 좋은 좌표에서 시작하므로
+        # 수동으로 켜도 예전의 "나쁜 원형 배치에서 시작" 문제는 없다).
+        PHYSICS_NODE_THRESHOLD = SMALL_GRAPH_THRESHOLD
         visible_node_count = len(visible_ids)
         visible_edge_count = len(visible_edges) if initial_ids is not None else len(edges_data)
-        physics_default = visible_node_count <= LARGE_VISIBLE_SET_CAP
+        physics_default = visible_node_count <= PHYSICS_NODE_THRESHOLD
         edge_smooth_dynamic = visible_edge_count <= 500
 
         cg_html = cg_template\
