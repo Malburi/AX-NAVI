@@ -164,6 +164,11 @@
     const expandedIds = new Set(nodesData.filter(n => n.initial).map(n => n.id));
     const initialExpandedSize = expandedIds.size;
 
+    // wiki_generator.py가 x/y를 구운 노드만 "신뢰 가능한 좌표"로 취급한다. 나머지(숨겨진 노드)는
+    // vis-network가 construction 시점에 임의 원형 좌표를 준 상태이므로, 펼쳐질 때
+    // revealNeighbors()가 명시적으로 다시 배치해줘야 한다.
+    const positionedIds = new Set(nodesData.filter(n => typeof n.x === 'number').map(n => n.id));
+
     function isVisible(id) {
       return activeTypes.has(nodeTypeMap[id]) && expandedIds.has(id);
     }
@@ -174,14 +179,58 @@
 
     // 노드를 펼친다 — 자기 자신 + 직접 연결된 이웃(양방향)을 보이게 한다. vis-network는 연결된
     // 노드가 hidden이면 엣지도 자동으로 숨기므로 엣지 쪽은 손댈 필요가 없다.
+    function positionNear(anchorPos, jitter = 60) {
+      return {
+        x: anchorPos.x + (Math.random() - 0.5) * jitter,
+        y: anchorPos.y + (Math.random() - 0.5) * jitter
+      };
+    }
+
+    function centroidOfPositioned(ids) {
+      const known = ids.filter(id => positionedIds.has(id));
+      if (!known.length) return null;
+      const pts = network.getPositions(known);  // 현재 렌더된 위치 — 물리엔진을 이미
+                                                  // 한 번 돌린 뒤에도 정확함(DataSet의 x/y는
+                                                  // 그때부터 stale해지지만 Network의 실시간
+                                                  // 위치는 그렇지 않음)
+      const cx = known.reduce((s, id) => s + pts[id].x, 0) / known.length;
+      const cy = known.reduce((s, id) => s + pts[id].y, 0) / known.length;
+      return { x: cx, y: cy };
+    }
+
+    // 노드를 펼친다 — 자기 자신 + 직접 연결된 이웃(양방향)을 보이게 한다. vis-network는 연결된
+    // 노드가 hidden이면 엣지도 자동으로 숨기므로 엣지 쪽은 손댈 필요가 없다. 새로 펼쳐진 노드는
+    // 좌표가 없을 수 있으므로(원본 좌표가 construction 시점의 원형 배치 그대로 남아있음),
+    // 이미 배치된 이웃들의 평균 좌표 + 지터로 다시 배치해 "원 저 끝"으로 순간이동하지 않게 한다.
     function revealNeighbors(id) {
       const before = expandedIds.size;
+      const newlyRevealed = [];
+      if (!expandedIds.has(id)) newlyRevealed.push(id);
       expandedIds.add(id);
       edgesData.forEach(e => {
+        if (e.from === id && !expandedIds.has(e.to)) newlyRevealed.push(e.to);
+        if (e.to === id && !expandedIds.has(e.from)) newlyRevealed.push(e.from);
         if (e.from === id) expandedIds.add(e.to);
         if (e.to === id) expandedIds.add(e.from);
       });
-      if (expandedIds.size !== before) syncVisibility();
+      if (expandedIds.size === before) return;
+      syncVisibility();
+
+      if (!positionedIds.has(id)) {
+        const neighborIds = edgesData
+          .filter(e => e.from === id || e.to === id)
+          .map(e => (e.from === id ? e.to : e.from));
+        const c = centroidOfPositioned(neighborIds) || { x: 0, y: 0 };
+        const p = positionNear(c, 80);
+        nodes.update({ id, x: p.x, y: p.y });
+        positionedIds.add(id);
+      }
+      const anchor = network.getPositions([id])[id];
+      newlyRevealed.filter(n => n !== id && !positionedIds.has(n)).forEach(nid => {
+        const p = positionNear(anchor, 80);
+        nodes.update({ id: nid, x: p.x, y: p.y });
+        positionedIds.add(nid);
+      });
     }
 
     const container = document.getElementById('graph');

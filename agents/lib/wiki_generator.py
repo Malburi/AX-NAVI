@@ -3,6 +3,8 @@ import os
 import json
 import re
 import sys
+import math      # 추가 — 사전 배치 레이아웃 계산용
+import random    # 추가 — 결정론적(고정 시드) 레이아웃 배치용
 import wiki_render
 import wiki_content
 import docsify_convert
@@ -468,6 +470,102 @@ def merge_db_tables_into_graph(raw_graph, schema_json, sql_usage_json):
     return {"nodes": nodes, "edges": edges}, {"table_nodes": len(table_node_ids), "query_edges": len(seen_edges)}
 
 
+def compute_layout(node_ids, edges, iterations=100, seed=42, target_spacing=120.0):
+    """
+    stdlib-only Fruchterman-Reingold 스타일 force-directed 레이아웃.
+    node_ids: 배치할 노드 id의 iterable (전체 그래프의 부분집합 가능).
+    edges: (from_id, to_id) 튜플의 iterable. node_ids 밖의 endpoint를 가진 엣지는 무시.
+    반환: id -> (x, y) dict, (0,0) 부근 중심, vis-network 캔버스 단위.
+
+    결정론 보장:
+      - node_ids를 정렬 후 사용한다. 문자열 set/dict의 순회 순서는 프로세스마다 달라질 수
+        있어(PYTHONHASHSEED) 정렬 없이는 같은 입력 그래프에도 실행마다 다른 바이트 출력이
+        나올 수 있고, 이는 wiki-hub 발행 시 불필요한 새 버전을 만든다(위쪽의 기존
+        `sorted(..., key=lambda item: (-item[1], item[0]))`과 같은 이유).
+      - random.Random(seed)로 지역 인스턴스를 써서 다른 코드의 random 사용과 격리한다.
+    """
+    ids = sorted(set(node_ids))
+    n = len(ids)
+    if n == 0:
+        return {}
+    if n == 1:
+        return {ids[0]: (0.0, 0.0)}
+
+    rng = random.Random(seed)
+    k = target_spacing  # call-graph.template.html의 forceAtlas2Based springLength(120)와 맞춤
+    side = k * math.sqrt(n)
+
+    id_set = set(ids)
+    adj = [(f, t) for f, t in edges if f in id_set and t in id_set and f != t]
+
+    pos = {nid: (rng.uniform(-side / 2, side / 2), rng.uniform(-side / 2, side / 2)) for nid in ids}
+    index = {nid: i for i, nid in enumerate(ids)}
+    disp = [[0.0, 0.0] for _ in ids]
+    temperature = side / 10.0
+
+    for _ in range(iterations):
+        for i in range(n):
+            disp[i][0] = 0.0
+            disp[i][1] = 0.0
+
+        for i in range(n):
+            xi, yi = pos[ids[i]]
+            for j in range(i + 1, n):
+                xj, yj = pos[ids[j]]
+                dx, dy = xi - xj, yi - yj
+                dist2 = dx * dx + dy * dy
+                if dist2 < 1e-4:
+                    dx, dy = rng.uniform(-1, 1), rng.uniform(-1, 1)
+                    dist2 = 1e-4
+                dist = math.sqrt(dist2)
+                force = (k * k) / dist
+                fx, fy = dx / dist * force, dy / dist * force
+                disp[i][0] += fx; disp[i][1] += fy
+                disp[j][0] -= fx; disp[j][1] -= fy
+
+        for f, t in adj:
+            xf, yf = pos[f]; xt, yt = pos[t]
+            dx, dy = xf - xt, yf - yt
+            dist = math.sqrt(dx * dx + dy * dy) or 0.01
+            force = (dist * dist) / k
+            fx, fy = dx / dist * force, dy / dist * force
+            i, j = index[f], index[t]
+            disp[i][0] -= fx; disp[i][1] -= fy
+            disp[j][0] += fx; disp[j][1] += fy
+
+        for i, nid in enumerate(ids):
+            dx, dy = disp[i]
+            dlen = math.sqrt(dx * dx + dy * dy) or 0.01
+            capped = min(dlen, temperature)
+            x, y = pos[nid]
+            x = max(-side, min(side, x + dx / dlen * capped))
+            y = max(-side, min(side, y + dy / dlen * capped))
+            pos[nid] = (x, y)
+        temperature *= 0.95
+
+    return {nid: (round(x, 1), round(y, 1)) for nid, (x, y) in pos.items()}
+
+
+def _place_remaining_near_neighbors(remaining_ids, edges, known_positions, seed=42):
+    """LARGE_VISIBLE_SET_CAP 초과로 compute_layout을 허브에만 돌렸을 때, 나머지 노드를
+    이미 배치된 이웃들의 평균 좌표 + 지터로 배치한다(고아 노드는 원점 부근 폴백)."""
+    rng = random.Random(seed)
+    adjacency = {}
+    for f, t in edges:
+        adjacency.setdefault(f, []).append(t)
+        adjacency.setdefault(t, []).append(f)
+    positions = dict(known_positions)
+    for nid in sorted(remaining_ids):
+        neigh = [n for n in adjacency.get(nid, []) if n in positions]
+        if neigh:
+            cx = sum(positions[n][0] for n in neigh) / len(neigh)
+            cy = sum(positions[n][1] for n in neigh) / len(neigh)
+        else:
+            cx, cy = 0.0, 0.0
+        positions[nid] = (round(cx + rng.uniform(-60, 60), 1), round(cy + rng.uniform(-60, 60), 1))
+    return positions
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Zero-LLM Wiki Generator — _workspace/.claude 산출물을 그대로 wiki 페이지로")
@@ -671,7 +769,19 @@ def main():
             out_degree[from_node] = out_degree.get(from_node, 0) + 1
 
         total_nodes = len(raw_graph.get("nodes", []))
-        hub_threshold = max(5, int(total_nodes * 0.15))
+
+        # 배지/범례/통계용 "허브" 임계값. 기존 total_nodes*0.15는 노드 수만 보는 고정 비율이라
+        # 호출 그래프처럼 간선이 노드 수에 비례할 뿐 밀도가 안 오르는 그래프(간선 ≈ 노드)에서는
+        # 그래프가 커질수록 실제 in-degree와 무관하게 값이 폭주해 대형 그래프는 항상 허브 0개로
+        # 표시됐다(3857개 → 578 요구, 실측 최대 in-degree 168). 실제 in-degree 분포의 상위
+        # 5%(95th percentile) 지점을 쓰고, 그래프가 아주 작거나 균일해 값이 무의미하게 낮아질
+        # 때를 대비해 최솟값 3을 둔다.
+        in_degree_sorted_desc = sorted(in_degree.values(), reverse=True)
+        if in_degree_sorted_desc:
+            top5_pct_rank = max(1, int(len(in_degree_sorted_desc) * 0.05))
+            hub_threshold = max(3, in_degree_sorted_desc[top5_pct_rank - 1])
+        else:
+            hub_threshold = 3
 
         # 대형 그래프는 초기 렌더링에 노드 전량을 vis-network에 올려 브라우저가 버벅였다(상한 없음, 실측
         # call_graph.json 36MB). 물리엔진 OFF 기준(300)과 같은 경계에서, in-degree 상위 허브 + 그 직접
@@ -679,8 +789,8 @@ def main():
         # hub_threshold(위, 배지 크기용)와는 별개 — 대형 그래프에서 hub_threshold는 너무 높아져
         # 사실상 0개가 되므로 순위 기반으로 별도 계산한다.
         SMALL_GRAPH_THRESHOLD = 300
-        if total_nodes <= SMALL_GRAPH_THRESHOLD:
-            initial_ids = None  # 축소 없음 — 현재와 동일하게 전부 표시
+        if total_nodes <= SMALL_GRAPH_THRESHOLD or not raw_graph.get("edges"):
+            initial_ids = None  # 축소 없음 — 현재와 동일하게 전부 표시 (엣지 0개면 랭킹 근거가 없음)
         else:
             initial_hub_count = min(60, max(20, total_nodes // 50))
             ranked = sorted(in_degree.items(), key=lambda item: (-item[1], item[0]))  # 동률은 id로 결정론 확보
@@ -693,6 +803,34 @@ def main():
                 if t in hub_ids:
                     neighbor_ids.add(f)
             initial_ids = hub_ids | neighbor_ids
+
+        # ---- 정적 레이아웃 프리컴퓨트 (물리엔진 OFF 상태에서도 원형 뭉침 방지) ----
+        # vis-network는 물리엔진이 꺼져 있고 노드에 x/y가 없으면 construction 시점에
+        # positionInitially()로 반지름 ~(전체 노드수+50)인 원 위에 무작위 배치한다. 대형
+        # 그래프는 물리엔진이 기본 OFF라 이 원형 배치가 그대로 남는다. "초기 표시(initial)"
+        # 노드 집합만 생성 시점에 파이썬에서 좌표를 구워, 물리엔진 상태와 무관하게 항상
+        # 읽을 수 있는 배치가 나오게 한다.
+        LARGE_VISIBLE_SET_CAP = 1500
+        visible_ids = set(initial_ids) if initial_ids is not None else {
+            n.get("id") for n in raw_graph.get("nodes", [])
+        }
+        visible_edges = [
+            (e.get("from"), e.get("to"))
+            for e in raw_graph.get("edges", [])
+            if e.get("from") in visible_ids and e.get("to") in visible_ids
+        ]
+        if len(visible_ids) <= LARGE_VISIBLE_SET_CAP:
+            n_for_iter = len(visible_ids)
+            pair_count = max(1, n_for_iter * (n_for_iter - 1) // 2)
+            iterations = max(30, min(100, int(50_000_000 / pair_count)))
+            layout_positions = compute_layout(visible_ids, visible_edges, iterations=iterations)
+        else:
+            # 밀집 그래프에서 허브+이웃 확장이 예외적으로 캡을 넘으면, 허브만 정식으로
+            # 배치하고 나머지는 이웃 평균 좌표로 붙인다(전량 O(n^2) 계산을 피함).
+            layout_positions = compute_layout(hub_ids, visible_edges, iterations=100)
+            layout_positions = _place_remaining_near_neighbors(
+                visible_ids - set(layout_positions), visible_edges, layout_positions, seed=42
+            )
 
         dead_code = {}
         if dead_code_json:
@@ -760,6 +898,16 @@ def main():
                 extra["opacity"] = 0.4
 
             extra["initial"] = initial_ids is None or nid in initial_ids
+
+            # 주의: nid는 위의 중복 id 방어 로직 때문에 원본 id와 다를 수 있다(#dup 접미사).
+            # layout_positions는 원본 id(node.get("id")) 기준으로 계산했으므로 조회도 원본
+            # id로 해야 한다 — nid로 조회하면 중복 노드에서 조용히 miss 난다(그 노드만 좌표
+            # 없이 폴백되는 드문 방어적 케이스로 허용).
+            pos_xy = layout_positions.get(node.get("id"))
+            if pos_xy is not None:
+                extra["x"], extra["y"] = pos_xy
+                # fixed는 설정하지 않는다 — 구운 좌표는 "초기 배치 힌트"일 뿐, 사용자가
+                # 물리엔진 토글을 켜면 계속 움직여야 한다(fixed:true면 영구 고정돼버림).
 
             nodes_data.append({
                 "id": nid,
@@ -859,8 +1007,15 @@ def main():
         # 노드/엣지 수가 많으면 기본 물리 시뮬레이션·동적 엣지 스무딩을 꺼서 초기 로딩을 가볍게 한다
         # (사용자가 필요하면 화면의 "물리엔진 ON" 토글로 직접 켤 수 있음 — 상세 근거는
         # call-graph.template.html 헤더 주석 참조).
-        physics_default = len(nodes_data) <= 300
-        edge_smooth_dynamic = len(edges_data) <= 500
+        # 물리엔진/동적 엣지 스무딩 on-off는 "전체 데이터셋 크기"가 아니라 "초기에 실제로
+        # 화면에 보이는(hidden=false) 노드/엣지 수" 기준이어야 한다 — vis-network는 hidden
+        # 노드를 물리 시뮬레이션에서 제외한다. 위에서 이미 계산한 visible_ids/visible_edges를
+        # 재사용한다(중복 계산 방지). 이제 노드는 위에서 좌표가 구워져 있으므로, 물리엔진을
+        # 켜도 나쁜 무작위 원이 아니라 이미 괜찮은 배치에서 미세 조정만 하게 된다.
+        visible_node_count = len(visible_ids)
+        visible_edge_count = len(visible_edges) if initial_ids is not None else len(edges_data)
+        physics_default = visible_node_count <= LARGE_VISIBLE_SET_CAP
+        edge_smooth_dynamic = visible_edge_count <= 500
 
         cg_html = cg_template\
             .replace("{{VIS_NETWORK_JS}}", vis_network_js)\
