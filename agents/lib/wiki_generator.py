@@ -492,29 +492,37 @@ _MODULE_CONTAINER_PREFIXES = {
 }
 
 
-def derive_module(node, vis_type):
+def module_candidate(node, vis_type):
     """
-    노드 하나를 모듈/패키지 단위로 묶기 위한 키를 만든다. DB 테이블·외부 시스템은
-    소속 패키지가 무의미하므로(어차피 여러 모듈에서 공유 접근) 타입 자체를 모듈로 쓴다.
+    노드 하나를 모듈/패키지 단위로 묶기 위한 후보를 만든다. (is_final, value) 튜플을
+    반환한다 — is_final=True면 value는 바로 쓸 확정 모듈 키(str). is_final=False면
+    value는 세분화된 경로(tuple) — 호출부가 전체 노드를 다 본 뒤 rollup_modules()로
+    2차 병합해야 최종 모듈 키가 된다(밑에서 이유 설명).
+
+    DB 테이블·외부 시스템은 소속 패키지가 무의미하므로(어차피 여러 모듈에서 공유 접근)
+    타입 자체를 모듈로 쓴다 — 바로 확정.
 
     파일 경로 기준으로 판단한다(dotted id 기준이 아님) — analyzer가 만드는 `trigger:` id는
     "trigger:UI Project/HPS.QS/HPS.QS.QB/00 검사요청/HPSQB00030(...).Designer"처럼 파일
     경로 자체가 id라, dotted-id 분리 방식으로는 파일마다 별개 모듈이 되기 때문이다.
 
     1순위: 폴더 이름 자체가 네임스페이스형(점 2개 이상, 예: "HPS.QS.QA")인 .NET류 관례 —
-    이 규칙이 매치되면 그대로 쓴다(HPS 실사용 검증 완료, 아래 2순위는 이 매치가 하나도
-    없을 때만 평가되므로 이 경로의 동작은 바뀌지 않는다).
+    이 규칙이 매치되면 그대로 확정. (HPS 실사용 검증 완료, 아래 2순위는 이 매치가 하나도
+    없을 때만 평가되므로 이 경로의 동작은 바뀌지 않는다.)
 
-    2순위: Java/Kotlin류처럼 패키지 세그먼트마다 폴더가 하나씩인 관례 — 실측(xu43-server,
-    Struts+coperframe 구조) 결과 마지막 폴더가 계층 이름(service/dao/action 등)인 경우가
-    압도적으로 많아, 그것부터 안 떼면 eduport의 announce/board/code/edi 같은 서로 무관한
-    기능이 전부 "service" 하나로 뭉친다. 계층 이름과 빌드 컨테이너 폴더를 걷어낸 뒤 남는
-    마지막 1~2개 세그먼트를 도메인 모듈로 삼는다.
+    2순위: Java/Kotlin류처럼 패키지 세그먼트마다 폴더가 하나씩인 관례 — 계층 이름
+    (service/dao/action 등)과 빌드 컨테이너 폴더(src/main/java, WEB-INF/classes 등)를
+    걷어낸 나머지 전체 경로를 "세분화 후보"로 반환한다(확정 아님). 실측(xu43-server,
+    Struts+coperframe 구조, 706개 파일)에서 이 세분화 후보를 그대로 모듈로 쓰면 139개까지
+    쪼개졌다 — education 밑에 apply/course/session/valuation 등 진짜 다른 기능이 많아서
+    "마지막 2세그먼트"든 무엇이든 고정 규칙 하나로는 적당한 개수로 못 줄인다. 그래서 여기서는
+    후보만 반환하고, 실제 병합은 전체 분포를 본 뒤 rollup_modules()가 예산(목표 모듈 수)에
+    맞춰 형제 중 작은 것부터 부모 경로로 접어 올린다.
     """
     if vis_type in ("db_table", "mssql_table"):
-        return "🗄 DB 테이블"
+        return True, "🗄 DB 테이블"
     if vis_type in ("external", "sap_interface"):
-        return "🔶 외부 시스템"
+        return True, "🔶 외부 시스템"
     nid = node.get("id") or ""
     path = node.get("file") or ""
     if not path and nid.startswith("trigger:"):
@@ -525,7 +533,7 @@ def derive_module(node, vis_type):
 
     dotted = [s for s in body if s.count(".") >= 2]
     if dotted:
-        return dotted[-1]
+        return True, dotted[-1]
 
     trimmed = list(body)
     while trimmed and trimmed[-1].lower() in _MODULE_LAYER_NAMES:
@@ -534,18 +542,55 @@ def derive_module(node, vis_type):
         trimmed.pop(0)
     if not trimmed:
         trimmed = body
-    if len(trimmed) >= 2:
-        return ".".join(trimmed[-2:])
     if trimmed:
-        return trimmed[-1]
+        return False, tuple(trimmed)
 
     # 3순위: 파일/경로 정보 자체가 없는 극히 드문 경우 — id의 dotted prefix로 최후 폴백
     parts = nid.split(".")
     if len(parts) >= 3:
-        return ".".join(parts[:-2])
+        return True, ".".join(parts[:-2])
     if len(parts) == 2:
-        return parts[0]
-    return nid or "(module 미상)"
+        return True, parts[0]
+    return True, nid or "(module 미상)"
+
+
+def rollup_modules(leaf_counts, target_max):
+    """
+    module_candidate()가 반환한 세분화 경로(tuple)들이 목표 개수(target_max)를 넘으면,
+    형제(같은 부모 경로를 가진) 중 파일 수가 가장 작은 것부터 부모 경로로 접어 올려서
+    개수를 줄인다. "마지막 N세그먼트"처럼 고정 깊이를 쓰지 않는 이유: 실측 프로젝트가
+    하위트리마다 깊이가 다 달라서(예: "front/community"는 2단계로 이미 충분한데
+    "eduport/lms/back/education/apply"는 5단계) 고정 깊이 하나로는 얕은 쪽은 그대로 두고
+    깊은 쪽만 적당히 접는 게 안 된다. 트리 구조를 그대로 따라 "가장 작은 것부터" 접으면
+    자연히 진짜 세분화가 필요한 큰 하위트리는 오래 남고, 파일 몇 개짜리 잔가지만 먼저
+    부모로 흡수된다.
+
+    leaf_counts: {tuple(segments): 파일 수}. target_max개 이하가 될 때까지 반복.
+    반환: {원본 leaf tuple: 최종(병합 후) tuple} 매핑 — 호출부가 각 노드의 원래 후보를
+    이걸로 조회해 최종 모듈 문자열(".".join(...))을 만든다.
+    """
+    groups = dict(leaf_counts)
+    membership = {t: {t} for t in leaf_counts}
+
+    def parent_of(t):
+        return t[:-1] if len(t) > 1 else t
+
+    while len(groups) > target_max:
+        mergeable = [t for t in groups if len(t) > 1]
+        if not mergeable:
+            break  # 전부 1단계 경로뿐이면 더 못 접음 — target_max 초과 상태로 종료
+        smallest = min(mergeable, key=lambda t: groups[t])
+        cnt = groups.pop(smallest)
+        members = membership.pop(smallest)
+        parent = parent_of(smallest)
+        groups[parent] = groups.get(parent, 0) + cnt
+        membership.setdefault(parent, set()).update(members)
+
+    leaf_to_final = {}
+    for final_t, members in membership.items():
+        for leaf in members:
+            leaf_to_final[leaf] = final_t
+    return leaf_to_final
 
 
 def compute_layout(node_ids, edges, iterations=100, seed=42, target_spacing=120.0):
@@ -917,7 +962,12 @@ def main():
                 dead_code[item.get("id")] = item.get("reason", "")
 
         seen_node_ids = {}
-        node_module = {}  # 원본 id(#dup 접미사 없음) -> 모듈 키, 아래 엣지 집계에서 재사용
+        node_module = {}  # 원본 id(#dup 접미사 없음) -> 확정 모듈 키, 아래 엣지 집계에서 재사용
+        # module_candidate()가 세분화 후보(tuple)를 반환한 노드는 여기 모아뒀다가, 전체
+        # 분포를 본 뒤(rollup_modules) 한꺼번에 최종 모듈 키를 정해서 extra["module"]을
+        # 채운다 — 노드 하나씩 볼 때는 전체 몇 개 모듈이 나올지 알 수 없기 때문이다.
+        pending_module_nodes = []  # [(원본 id, 후보 tuple, extra dict)]
+        module_leaf_counts = {}
         for node in raw_graph.get("nodes", []):
             nid = node.get("id")
             # vis.DataSet()이 id 중복을 던지므로(런타임에 전체 그래프가 깨짐), 분석기가
@@ -978,9 +1028,13 @@ def main():
 
             extra["initial"] = initial_ids is None or nid in initial_ids
 
-            module_key = derive_module(node, vis_type)
-            node_module[node.get("id")] = module_key
-            extra["module"] = module_key
+            is_final, candidate = module_candidate(node, vis_type)
+            if is_final:
+                node_module[node.get("id")] = candidate
+                extra["module"] = candidate
+            else:
+                module_leaf_counts[candidate] = module_leaf_counts.get(candidate, 0) + 1
+                pending_module_nodes.append((node.get("id"), candidate, extra))
 
             # 주의: nid는 위의 중복 id 방어 로직 때문에 원본 id와 다를 수 있다(#dup 접미사).
             # layout_positions는 원본 id(node.get("id")) 기준으로 계산했으므로 조회도 원본
@@ -1020,6 +1074,15 @@ def main():
                 "implements": sym.get("implements", []),
                 "methods": [m.get("name") for m in (sym.get("methods") or []) if isinstance(m, dict)]
             }
+
+        # 세분화 후보로 남겨뒀던 노드(module_candidate 2순위)들의 최종 모듈 키를 이제 확정한다
+        # — 전체 분포를 다 모은 지금이라야 목표 개수 안으로 접을 수 있다.
+        TARGET_MAX_MODULES = 40
+        leaf_to_final = rollup_modules(module_leaf_counts, TARGET_MAX_MODULES)
+        for original_id, candidate, extra in pending_module_nodes:
+            final_key = ".".join(leaf_to_final.get(candidate, candidate))
+            node_module[original_id] = final_key
+            extra["module"] = final_key
 
         for edge_item in raw_graph.get("edges", []):
             edges_data.append({
