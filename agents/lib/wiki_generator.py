@@ -470,6 +470,41 @@ def merge_db_tables_into_graph(raw_graph, schema_json, sql_usage_json):
     return {"nodes": nodes, "edges": edges}, {"table_nodes": len(table_node_ids), "query_edges": len(seen_edges)}
 
 
+def derive_module(node, vis_type):
+    """
+    노드 하나를 모듈/패키지 단위로 묶기 위한 키를 만든다. DB 테이블·외부 시스템은
+    소속 패키지가 무의미하므로(어차피 여러 모듈에서 공유 접근) 타입 자체를 모듈로 쓴다.
+
+    파일 경로 기준으로 판단한다(dotted id 기준이 아님) — analyzer가 만드는 `trigger:` id는
+    "trigger:UI Project/HPS.QS/HPS.QS.QB/00 검사요청/HPSQB00030(...).Designer"처럼 파일
+    경로 자체가 id라, dotted-id 분리 방식으로는 파일마다 별개 모듈이 되어(실측 224개 중
+    상당수가 파일당 1개짜리 trigger 모듈) 개요로서 무의미해졌다. 경로 세그먼트 중 점(.)을
+    2개 이상 포함한(네임스페이스형, 예: "HPS.QS.QA") 것 중 가장 안쪽 것을 모듈로 쓰면
+    trigger 노드와 일반 노드가 같은 폴더 밑에 있는 한 항상 같은 모듈로 묶인다.
+    """
+    if vis_type in ("db_table", "mssql_table"):
+        return "🗄 DB 테이블"
+    if vis_type in ("external", "sap_interface"):
+        return "🔶 외부 시스템"
+    nid = node.get("id") or ""
+    path = node.get("file") or ""
+    if not path and nid.startswith("trigger:"):
+        path = nid[len("trigger:"):]
+    path = path.replace("\\", "/")
+    segments = [s for s in path.split("/") if s]
+    candidates = [s for s in segments[:-1] if s.count(".") >= 2]
+    if candidates:
+        return candidates[-1]
+    if len(segments) >= 2:
+        return segments[-2]
+    parts = nid.split(".")
+    if len(parts) >= 3:
+        return ".".join(parts[:-2])
+    if len(parts) == 2:
+        return parts[0]
+    return nid or "(module 미상)"
+
+
 def compute_layout(node_ids, edges, iterations=100, seed=42, target_spacing=120.0):
     """
     stdlib-only Fruchterman-Reingold 스타일 force-directed 레이아웃.
@@ -839,6 +874,7 @@ def main():
                 dead_code[item.get("id")] = item.get("reason", "")
 
         seen_node_ids = {}
+        node_module = {}  # 원본 id(#dup 접미사 없음) -> 모듈 키, 아래 엣지 집계에서 재사용
         for node in raw_graph.get("nodes", []):
             nid = node.get("id")
             # vis.DataSet()이 id 중복을 던지므로(런타임에 전체 그래프가 깨짐), 분석기가
@@ -899,6 +935,10 @@ def main():
 
             extra["initial"] = initial_ids is None or nid in initial_ids
 
+            module_key = derive_module(node, vis_type)
+            node_module[node.get("id")] = module_key
+            extra["module"] = module_key
+
             # 주의: nid는 위의 중복 id 방어 로직 때문에 원본 id와 다를 수 있다(#dup 접미사).
             # layout_positions는 원본 id(node.get("id")) 기준으로 계산했으므로 조회도 원본
             # id로 해야 한다 — nid로 조회하면 중복 노드에서 조용히 miss 난다(그 노드만 좌표
@@ -948,6 +988,39 @@ def main():
                 "dashed": edge_item.get("type") in ("depends", "reflect"),
                 "note": edge_item.get("note", "")
             })
+
+        # ---- 모듈/패키지 단위 개요 그래프 ----
+        # 3,857개 함수를 한 캔버스에 뿌리는 것 자체가 "전체 구조를 훑어본다"는 목적과 안 맞는다는
+        # 피드백에 따라, 기본 화면을 모듈(패키지) 단위 요약 그래프로 바꾼다. 실제 함수 단위
+        # 그래프(nodesData/edgesData)는 그대로 유지되고, 사용자가 모듈을 클릭하면 그 모듈
+        # 내부만 보여주는 드릴다운 화면으로 전환된다(call-graph.template.html에서 처리).
+        module_node_count = {}
+        for m in node_module.values():
+            module_node_count[m] = module_node_count.get(m, 0) + 1
+
+        module_edge_agg = {}
+        for e in raw_graph.get("edges", []):
+            fm = node_module.get(e.get("from"))
+            tm = node_module.get(e.get("to"))
+            if fm and tm and fm != tm:
+                key = (fm, tm)
+                module_edge_agg[key] = module_edge_agg.get(key, 0) + 1
+
+        module_ids_sorted = sorted(module_node_count.keys())
+        module_layout_edges = list(module_edge_agg.keys())
+        # 모듈 그래프는 보통 수십 개 수준이라 전량 FR로 계산해도 충분히 빠르다.
+        module_positions = compute_layout(module_ids_sorted, module_layout_edges, iterations=150, seed=7, target_spacing=180.0)
+
+        module_nodes_js = []
+        for m in module_ids_sorted:
+            x, y = module_positions.get(m, (0.0, 0.0))
+            module_nodes_js.append(json.dumps({"id": m, "label": m, "count": module_node_count[m], "x": x, "y": y}))
+        module_edges_js = [
+            json.dumps({"from": fm, "to": tm, "count": cnt})
+            for (fm, tm), cnt in sorted(module_edge_agg.items())
+        ]
+        module_nodes_array_str = "[\n      " + ",\n      ".join(module_nodes_js) + "\n    ]" if module_nodes_js else "[]"
+        module_edges_array_str = "[\n      " + ",\n      ".join(module_edges_js) + "\n    ]" if module_edges_js else "[]"
 
         btn_labels = {
             "view": "🖥 뷰", "vue_view": "🖥 Vue 뷰", "endpoint": "⚡ API 엔드포인트",
@@ -1037,6 +1110,8 @@ def main():
             .replace("{{COLORS}}", json.dumps(COLORS, indent=2))\
             .replace("{{NODES_DATA}}", js_nodes_array_str)\
             .replace("{{EDGES_DATA}}", js_edges_array_str)\
+            .replace("{{MODULE_NODES}}", module_nodes_array_str)\
+            .replace("{{MODULE_EDGES}}", module_edges_array_str)\
             .replace("{{META}}", json.dumps(meta_data, indent=2))\
             .replace("{{PHYSICS_DEFAULT}}", "true" if physics_default else "false")\
             .replace("{{EDGE_SMOOTH_DYNAMIC}}", "true" if edge_smooth_dynamic else "false")

@@ -72,13 +72,15 @@
   </div>
 
   <div class="filter-bar">
-    <span class="label">필터:</span>
+    <button id="backToModulesBtn" class="tool-btn active" style="display:none">← 모듈 개요로</button>
+    <span class="label" id="filterLabel">필터:</span>
     <button class="filter-btn active" data-type="all">전체</button>
     {{FILTER_BUTTONS}}
     <div class="filter-spacer"></div>
+    <button id="flatViewBtn" class="tool-btn">전체 함수 그래프(고급)</button>
     <button id="findBtn" class="tool-btn">찾기</button>
     <button id="resetHighlightBtn" class="tool-btn">강조 초기화</button>
-    <button id="collapseToHubBtn" class="tool-btn">허브 뷰로</button>
+    <button id="collapseToHubBtn" class="tool-btn">초기 뷰로</button>
     <button id="physicsToggle" class="tool-btn">물리엔진</button>
   </div>
 
@@ -175,10 +177,22 @@
     // nodes.update() 호출"이 되어, 물리엔진을 꺼도 클릭할 때마다 느렸다. 이제 "화면에 없는
     // 노드는 DataSet에도 없다"로 바꿔서, 모든 인터랙션 비용이 (숨겨진 개수가 아니라) 실제
     // 펼쳐진 개수에만 비례하게 한다. expandedIds에 있는 id는 항상 DataSet에도 존재하고,
-    // 항상 유효한 x/y를 갖는다(초기 표시분은 wiki_generator.py가 미리 구운 좌표, 나중에
-    // 펼친 것은 아래 revealNeighbors가 이웃 평균+지터로 즉시 배치).
-    const expandedIds = new Set(nodesData.filter(n => n.initial).map(n => n.id));
-    const initialExpandedSize = expandedIds.size;
+    // 항상 유효한 x/y를 갖는다(모듈 상세뷰의 초기 표시분은 물리엔진이, 전체 그래프뷰는
+    // wiki_generator.py가 미리 구운 좌표가 배치를 담당하고, 나중에 펼친 것은 아래
+    // revealNeighbors가 이웃 평균+지터로 즉시 배치한다).
+    const expandedIds = new Set();
+
+    // ---- 뷰 상태: 'module'(모듈/패키지 요약, 기본) | 'function'(실제 함수 호출 그래프) ----
+    // 3,857개 함수를 한 캔버스에 다 뿌리는 게 "구조를 훑어본다"는 목적과 안 맞는다는 피드백에
+    // 따라, 기본 화면을 모듈 단위 요약으로 바꿨다. 모듈을 클릭하면 그 모듈 내부의 실제 호출
+    // 관계만 보여주는 'function' 뷰로 드릴다운한다(currentModule에 어느 모듈인지 기록).
+    // currentModule이 null이면 "전체 함수 그래프(고급)" 모드 — 예전 기본 화면(전역 허브+이웃
+    // 955개)과 동일하며, revealNeighbors 등 기존에 검증한 로직을 그대로 재사용한다.
+    let currentView = 'module';
+    let currentModule = null;
+    // "초기 뷰로" 버튼이 되돌아갈 대상 — enterFunctionView가 매번 갱신한다(전체 뷰면 전역
+    // 허브+이웃, 모듈 상세뷰면 그 모듈의 초기 축소 집합).
+    let collapseTargetIds = new Set();
 
     function positionNear(anchorPos, jitter = 60) {
       return {
@@ -225,7 +239,16 @@
       if (toAdd.length) edges_ds.add(toAdd);
     }
 
-    // 노드를 펼친다 — 자기 자신 + 직접 연결된 이웃(양방향)을 화면에 추가한다.
+    // 모듈 상세뷰(currentModule이 설정된 상태)에서는 그 모듈 밖의 이웃까지 펼치면 "이 모듈만
+    // 본다"는 드릴다운 의미가 깨지므로, 펼쳐지는 이웃을 같은 모듈로 제한한다. 전체 함수
+    // 그래프(고급, currentModule===null)에서는 제한 없이 전부 펼친다(예전 동작 그대로).
+    function inScope(nid) {
+      if (currentModule === null) return true;
+      const n = nodeById.get(nid);
+      return !!n && n.module === currentModule;
+    }
+
+    // 노드를 펼친다 — 자기 자신 + 직접 연결된 이웃(양방향, 현재 스코프 내)을 화면에 추가한다.
     function revealNeighbors(id) {
       const wasAbsent = addNodeToGraph(id, null);
       if (wasAbsent) {
@@ -240,26 +263,24 @@
       const newNodes = [];
       (edgesByNode.get(id) || []).forEach(e => {
         const nb = e.from === id ? e.to : e.from;
+        if (!inScope(nb)) return;
         if (addNodeToGraph(nb, anchor)) newNodes.push(nb);
       });
       newNodes.forEach(connectEdgesFor);
     }
 
     const container = document.getElementById('graph');
-    // DataSet에는 initial(허브+이웃)로 펼쳐진 노드/엣지만 넣는다 — 나머지는 nodesData/edgesData/
-    // edgesByNode에 그대로 남아있다가 revealNeighbors()로 필요할 때만 add()된다.
+    // DataSet은 빈 채로 시작한다 — 실제 내용은 아래 renderModuleOverview()/enterFunctionView()가
+    // 뷰 전환 시점에 채운다. nodesData/edgesData/edgesByNode에 전체 데이터가 그대로 있으므로
+    // 손실 없이 필요한 만큼만 add()된다.
     const addedEdgeIds = new Set();
-    const initialEdges = edgesData.filter(e => expandedIds.has(e.from) && expandedIds.has(e.to));
-    initialEdges.forEach(e => addedEdgeIds.add(e.id));
-    const nodes = new vis.DataSet(
-      nodesData.filter(n => expandedIds.has(n.id)).map(n => ({ ...n, hidden: !activeTypes.has(nodeTypeMap[n.id]) }))
-    );
-    const edges_ds = new vis.DataSet(initialEdges);
+    const nodes = new vis.DataSet([]);
+    const edges_ds = new vis.DataSet([]);
     // 노드·엣지가 많으면(임계값은 wiki_generator.py에서 결정) 기본 물리엔진 OFF + 동적 엣지
     // 스무딩(가장 비싼 렌더 옵션) OFF — 대형 그래프에서 로딩이 급격히 느려지는 걸 막는다.
     // 물리엔진은 토글 버튼으로 언제든 켤 수 있고, 켰다가 안정화가 끝나면 자동으로 다시 꺼서
     // (stabilizationIterationsDone) 드래그·줌 중 불필요한 시뮬레이션 재계산을 막는다.
-    let physicsOn = {{PHYSICS_DEFAULT}};
+    let physicsOn = false;  // 모듈 개요는 항상 사전 배치 좌표로 시작 — 물리엔진 불필요
     const network = new vis.Network(container, { nodes, edges: edges_ds }, {
       physics: {
         enabled: physicsOn, solver: 'forceAtlas2Based',
@@ -271,6 +292,125 @@
       nodes: { borderWidth: 2, shadow: true },
       layout: { improvedLayout: true }
     });
+
+    // ---- 모듈(패키지) 요약 뷰 ----
+    const MODULE_NODES = {{MODULE_NODES}};
+    const MODULE_EDGES = {{MODULE_EDGES}};
+    const moduleById = new Map(MODULE_NODES.map(m => [m.id, m]));
+
+    function mkModuleNode(m) {
+      return {
+        id: 'module:' + m.id, label: m.label + '\n(' + m.count + '개)',
+        shape: 'box', margin: 10,
+        color: { background: '#22314f', border: '#4A90D9', highlight: { background: '#2e4166', border: '#fff' } },
+        font: { color: '#e8eefc', size: 13 },
+        borderWidth: 2, shadow: true,
+        x: m.x, y: m.y
+      };
+    }
+    function mkModuleEdge(e) {
+      return {
+        from: 'module:' + e.from, to: 'module:' + e.to,
+        label: String(e.count), arrows: 'to',
+        width: Math.min(8, 1 + Math.log2(e.count + 1)),
+        color: { color: 'rgba(150,150,200,0.5)', highlight: '#4A90D9' },
+        font: { size: 10, color: '#999', align: 'middle' },
+        smooth: { type: 'curvedCW', roundness: 0.15 }
+      };
+    }
+
+    function moduleMemberIds(moduleKey) {
+      return nodesData.filter(n => n.module === moduleKey).map(n => n.id);
+    }
+
+    // 필터바·검색·강조초기화 등은 'function' 뷰에서만 의미가 있다 — 모듈 뷰에서는 숨긴다.
+    function updateChromeForView() {
+      const inFn = currentView === 'function';
+      document.getElementById('backToModulesBtn').style.display = inFn ? '' : 'none';
+      document.getElementById('filterLabel').style.display = inFn ? '' : 'none';
+      document.querySelectorAll('.filter-btn').forEach(b => { b.style.display = inFn ? '' : 'none'; });
+      document.getElementById('resetHighlightBtn').style.display = inFn ? '' : 'none';
+      document.getElementById('physicsToggle').style.display = inFn ? '' : 'none';
+      document.getElementById('flatViewBtn').style.display = inFn ? 'none' : '';
+      const totalForScope = currentModule === null ? nodesData.length : moduleMemberIds(currentModule).length;
+      document.getElementById('collapseToHubBtn').style.display = (inFn && collapseTargetIds.size < totalForScope) ? '' : 'none';
+    }
+
+    function renderModuleOverview() {
+      currentView = 'module';
+      currentModule = null;
+      expandedIds.clear(); addedEdgeIds.clear();
+      nodes.clear(); edges_ds.clear();
+      nodes.add(MODULE_NODES.map(mkModuleNode));
+      edges_ds.add(MODULE_EDGES.map(mkModuleEdge));
+      physicsOn = false;
+      network.setOptions({ physics: { enabled: false } });
+      syncPhysicsBtn();
+      network.fit();
+      updateChromeForView();
+      const dc = document.getElementById('detailContent');
+      dc.classList.add('empty');
+      dc.innerHTML = '모듈을 클릭하면 내부 호출 관계를 볼 수 있습니다.';
+    }
+
+    // moduleKey가 null이면 "전체 함수 그래프(고급)" — 예전 기본 화면(전역 허브+이웃)과 동일하다.
+    // moduleKey가 있으면 그 모듈 내부만 스코프로 삼는다(크면 모듈 내부 in-degree 기준
+    // 허브+이웃만 초기 표시 — 전역 그래프와 같은 원리를 모듈 스코프로 좁혀 재사용).
+    function enterFunctionView(moduleKey) {
+      currentView = 'function';
+      currentModule = moduleKey;
+      expandedIds.clear(); addedEdgeIds.clear();
+      nodes.clear(); edges_ds.clear();
+
+      let seedIds;
+      if (moduleKey === null) {
+        seedIds = new Set(nodesData.filter(n => n.initial).map(n => n.id));
+      } else {
+        const memberSet = new Set(moduleMemberIds(moduleKey));
+        const DETAIL_HUB_CAP = 250;
+        if (memberSet.size <= DETAIL_HUB_CAP) {
+          seedIds = memberSet;
+        } else {
+          const inDeg = {};
+          memberSet.forEach(id => {
+            (edgesByNode.get(id) || []).forEach(e => {
+              if (e.to === id && memberSet.has(e.from)) inDeg[id] = (inDeg[id] || 0) + 1;
+            });
+          });
+          const ranked = [...memberSet].sort((a, b) => (inDeg[b] || 0) - (inDeg[a] || 0) || (a < b ? -1 : 1));
+          const hubCount = Math.min(40, Math.max(15, Math.floor(memberSet.size / 20)));
+          const hubs = new Set(ranked.slice(0, hubCount));
+          seedIds = new Set(hubs);
+          hubs.forEach(h => {
+            (edgesByNode.get(h) || []).forEach(e => {
+              const other = e.from === h ? e.to : e.from;
+              if (memberSet.has(other)) seedIds.add(other);
+            });
+          });
+        }
+      }
+
+      seedIds.forEach(id => expandedIds.add(id));
+      nodes.add([...seedIds].map(id => {
+        const src = nodeById.get(id);
+        return { ...src, hidden: !activeTypes.has(nodeTypeMap[id]) };
+      }));
+      const seedEdges = edgesData.filter(e => seedIds.has(e.from) && seedIds.has(e.to));
+      seedEdges.forEach(e => addedEdgeIds.add(e.id));
+      edges_ds.add(seedEdges);
+
+      collapseTargetIds = new Set(seedIds);
+
+      physicsOn = (moduleKey === null) ? {{PHYSICS_DEFAULT}} : (seedIds.size <= 250);
+      network.setOptions({ physics: { enabled: physicsOn } });
+      syncPhysicsBtn();
+      network.fit();
+      updateChromeForView();
+
+      const dc = document.getElementById('detailContent');
+      dc.classList.add('empty');
+      dc.innerHTML = '노드를 클릭하세요.';
+    }
 
     function syncPhysicsBtn() {
       const btn = document.getElementById('physicsToggle');
@@ -343,11 +483,16 @@
       if (!params.nodes.length) {
         const dc = document.getElementById('detailContent');
         dc.classList.add('empty');
-        dc.innerHTML = '노드를 클릭하세요.';
+        dc.innerHTML = currentView === 'module' ? '모듈을 클릭하면 내부 호출 관계를 볼 수 있습니다.' : '노드를 클릭하세요.';
         return;
       }
-      revealNeighbors(params.nodes[0]);
-      showDetail(params.nodes[0]);
+      const id = params.nodes[0];
+      if (currentView === 'module') {
+        if (id.startsWith('module:')) enterFunctionView(id.slice('module:'.length));
+        return;
+      }
+      revealNeighbors(id);
+      showDetail(id);
     });
 
     // 아래 세 함수(resetHighlight/doubleClick/collapseToHubBtn)는 전부 "현재 화면에 있는
@@ -368,9 +513,10 @@
 
     document.getElementById('collapseToHubBtn').addEventListener('click', () => {
       // 단순히 숨기는(hidden) 게 아니라 DataSet에서 실제로 제거한다 — 그래야 펼쳤다 줄였다를
-      // 반복해도 DataSet이 계속 커지지 않고 성능이 유지된다.
-      const initialSet = new Set(nodesData.filter(n => n.initial).map(n => n.id));
-      const toRemove = [...expandedIds].filter(id => !initialSet.has(id));
+      // 반복해도 DataSet이 계속 커지지 않고 성능이 유지된다. collapseTargetIds는
+      // enterFunctionView가 진입할 때마다 갱신한다(전체 뷰=전역 허브+이웃, 모듈 상세뷰=그
+      // 모듈의 초기 축소 집합) — 두 경우 모두 이 한 핸들러로 처리된다.
+      const toRemove = [...expandedIds].filter(id => !collapseTargetIds.has(id));
       if (toRemove.length) {
         const removeSet = new Set(toRemove);
         const edgeIdsToRemove = [];
@@ -386,11 +532,11 @@
         toRemove.forEach(id => expandedIds.delete(id));
       }
       applyTypeFilterAndColor();
+      updateChromeForView();
     });
-    // 축소 뷰가 적용되지 않은(전부가 초기 표시인) 소형 그래프에서는 이 버튼이 아무 효과가 없으므로 숨긴다.
-    if (initialExpandedSize >= nodesData.length) {
-      document.getElementById('collapseToHubBtn').style.display = 'none';
-    }
+
+    document.getElementById('backToModulesBtn').addEventListener('click', renderModuleOverview);
+    document.getElementById('flatViewBtn').addEventListener('click', () => enterFunctionView(null));
 
     document.getElementById('physicsToggle').addEventListener('click', function() {
       physicsOn = !physicsOn;
@@ -401,7 +547,15 @@
     document.getElementById('findBtn').addEventListener('click', () => {
       const q = document.getElementById('searchInput').value.trim().toLowerCase();
       if (!q) return;
-      const hit = nodesData.find(n => {
+      if (currentView === 'module') {
+        const hitM = MODULE_NODES.find(m => m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q));
+        if (hitM) enterFunctionView(hitM.id);
+        return;
+      }
+      // 모듈 상세뷰에서는 그 모듈 안에서만 찾는다 — 다른 모듈 결과가 튀어나오면
+      // "이 모듈만 본다"는 드릴다운 맥락이 깨진다.
+      const pool = currentModule === null ? nodesData : nodesData.filter(n => n.module === currentModule);
+      const hit = pool.find(n => {
         const m = META[n.id] || {};
         return n.id.toLowerCase().includes(q) || n.label.toLowerCase().includes(q) || (m.file || '').toLowerCase().includes(q);
       });
@@ -462,6 +616,14 @@
         };
       }));
     });
+
+    // 부팅: 모듈이 2개 이상이어야 "개요" 역할을 한다. 1개 이하(모노리식 네임스페이스라 패키지
+    // 구분이 안 되는 경우 등)면 모듈 개요가 무의미하므로 바로 전체 함수 그래프로 시작한다.
+    if (MODULE_NODES.length >= 2) {
+      renderModuleOverview();
+    } else {
+      enterFunctionView(null);
+    }
   </script>
 </body>
 </html>
