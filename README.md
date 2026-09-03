@@ -14,20 +14,22 @@
 
 ## 🧬 설계 철학
 
-검증된 오픈소스 방법론 3종을 SM 현장에 맞게 접목했습니다.
+빌려온 방법론 2종과 자체 원칙 1종을 SM 현장에 맞게 접목했습니다.
 
 ```
-분석 전              분석 중              분석 후
-─────────────────    ─────────────────    ─────────────────
-목적이 명확한가?  →  파이프라인 실행   →  결과가 맞는가?
-(Ouroboros)          (Superpowers)         (Karpathy)
+분석 전                    분석 중              분석 후
+──────────────────────     ─────────────────    ─────────────────
+근거를 먼저 만든다     →   파이프라인 실행   →  결과가 맞는가?
+(결정론적 전수 인덱싱)     (Superpowers)        (Karpathy)
 ```
 
 | 출처 | 핵심 아이디어 | AX Navi 적용 |
 |------|-------------|----------------|
-| [Q00/ouroboros](https://github.com/Q00/ouroboros) | 코드 생성 전 모호성을 수치화해 80% 명확해질 때까지 질문 | **`spec-gate` 스킬** — 대형 작업 전 별도 호출로 목적·범위·제약 확인 (harness-init과는 독립) |
-| [Andrej Karpathy](https://karpathy.bearblog.dev) | 출력을 스스로 평가 → 실패 원인 분석 → 재생성 (AutoResearch) | **Phase 4 Eval Loop** — 4차원 품질 채점 → 80점 미만 시 타겟 재생성 |
-| [obra/superpowers](https://github.com/obra/superpowers) | 에이전트마다 프롬프트를 주지 말고 파이프라인에 방법론을 심어라 | **단계별 검증 파이프라인** — analyzer → writer → validator → eval (qa·wiki는 온디맨드) |
+| 자체 원칙 ([Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)와 결이 같음) | 가능한 곳은 결정론적 코드로, 판단이 필요한 곳에만 LLM | **Phase 2-0.5 전수 인덱싱** — analyzer보다 먼저 `build-index.mjs`가 심볼·호출 그래프·SQL 사용처·트랜잭션 경계를 LLM 없이 전수 파싱하고, 리포트·검증·집계도 스크립트가 맡는다 |
+| [obra/superpowers](https://github.com/obra/superpowers) | 에이전트마다 프롬프트를 주지 말고 파이프라인에 방법론을 심어라 | **단계별 검증 파이프라인** — analyzer → writer → pattern-extractor → validator → eval (qa·wiki는 온디맨드) |
+| [Andrej Karpathy](https://karpathy.bearblog.dev) | 출력을 스스로 평가 → 실패 원인 분석 → 재생성 (AutoResearch) | **Phase 4 Eval Loop** — 4차원 품질 채점 → 80점 미만 시 타겟 재생성 (1회, 점수 하락 시 초기 결과 유지) |
+
+> 작업 전 목적·범위를 먼저 정리하고 싶으면 `spec-gate` 스킬을 따로 호출할 수 있습니다. harness-init이 자동으로 부르지는 않습니다.
 
 ---
 
