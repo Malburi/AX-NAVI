@@ -669,13 +669,6 @@ def merge_api_endpoints_into_graph(raw_graph, api_contract_json):
     return {"nodes": nodes, "edges": edges}, info
 
 
-def _short_method(fqn):
-    """흐름 목록 표시용 축약 — 상세 패널이 좁아 FQN 전체는 어차피 잘린다. 페이로드 크기도
-    이 축약으로 절반 이하가 된다(실측 906KB → 412KB)."""
-    parts = str(fqn).split(".")
-    return ".".join(parts[-2:]) if len(parts) > 2 else str(fqn)
-
-
 FLOW_METHOD_CAP = 6
 FLOW_TABLE_CAP = 10
 
@@ -708,7 +701,11 @@ def build_endpoint_flows(data_flow_json):
         sq = [s for s in (c.get("sql_ids") or []) if s]
         flows[eid] = {
             "note": c.get("note") or "",
-            "methods": [_short_method(m) for m in mc[:FLOW_METHOD_CAP]],
+            # 축약하지 않고 전체 노드 id를 싣는다 — 상세 패널이 체인 항목을 클릭 가능한
+            # 링크로 만들어 흐름을 "걸어서" 따라갈 수 있게 하려면 실제 id가 필요하다
+            # (실측 method_chain 5,937/5,937이 call_graph 노드 id와 정확히 일치).
+            # 화면 표시용 축약은 템플릿의 shortMethod()가 렌더 시점에 한다.
+            "methods": mc[:FLOW_METHOD_CAP],
             "nm": len(mc),
             "sqls": sq[:FLOW_METHOD_CAP],
             "nq": len(sq),
@@ -791,6 +788,91 @@ def _looks_vendor_library(node):
     path = (node.get("file") or "").lower()
     tokens = set(re.split(r"[^a-z0-9]+", path))
     return bool(tokens & _VENDOR_LIBRARY_TOKENS)
+
+
+# external_io.json 항목 중 실제 외부 연동이 아닌 것을 걸러내기 위한 신호들.
+_IO_JUNK_PATH_TOKENS = {"packages", "node_modules", "bower_components", "libs",
+                        "dist", "obj", "bin", "wwwroot", "vendor", "vendors"}
+_IO_DOC_EXTS = {".xml", ".md", ".txt", ".json", ".csv", ".html", ".htm"}
+# window.open()/location 이동은 "외부 연동"이 아니라 화면 전이다 — 실측 xu43-client의
+# file_io 391건 중 381건이 target="open"이었다.
+_IO_NAV_TARGETS = {"open"}
+# analyzer가 description에 "이 항목은 오탐이다"라고 스스로 적어둔 경우를 잡는 표현.
+# 실측 xu43-client 395건 전부에 description이 있는데, 그중 354건이
+# "외부 시스템 통신이 아니며 인덱스의 file_io 분류는 오탐이다"류의 자기 부정 서술이었다 —
+# 즉 description의 존재는 "실제 연동"의 증거가 아니라 그 반대일 수도 있다.
+# 한계: analyzer 산문에 대한 키워드 매칭이라 표현이 바뀌면 놓친다. 놓치면 배지가 하나
+# 더 붙을 뿐이고(그 설명을 읽으면 오탐임을 알 수 있다) 그래프 구조에는 영향이 없다.
+_IO_FALSE_POSITIVE_MARKERS = ("오탐", "근거가 없", "무관하", "볼 수 없", "해당하지 않")
+
+
+def _io_is_noise(comm):
+    """external_io.json 항목이 실제 연동인지 판정.
+
+    실측 HPS는 1,931건 전부 packages/Newtonsoft.Json*.xml·DevExpress*.xml, 즉 서드파티
+    라이브러리 문서 XML에서 긁힌 문자열이었다(method 0건, description 0건, 전부 MEDIUM).
+    그대로 상세 패널에 올리면 HPS에서 아무 의미 없는 배지가 쏟아진다.
+
+    제외 근거(하나만 걸려도 제외):
+      1) description이 스스로 오탐이라고 밝힌다 → 제외 (아래 마커, 실측 client 354/395)
+      2) description이 없고 target이 window.open류 화면 전이다 → 연동이 아니다
+      3) description이 없고 경로에 packages/node_modules 등 의존성 폴더가 있다 → 우리 코드가 아니다
+      4) description이 없고 확장자가 문서·설정류(.xml/.md/.json/...)다 → 실행 코드가 아니다
+
+    description이 있는데 오탐 서술이 아니면 남긴다 — 사람이 읽을 판단이 이미 들어간
+    것이므로 3)4)의 경로 휴리스틱보다 우선한다(실측 client에서 이 규칙이 진짜
+    XMLHttpRequest.open·FileInputStream 41건을 살려낸다).
+    """
+    if not isinstance(comm, dict):
+        return True
+    desc = comm.get("description") or ""
+    if desc:
+        return any(mk in desc for mk in _IO_FALSE_POSITIVE_MARKERS)
+    if (comm.get("target") or "") in _IO_NAV_TARGETS:
+        return True
+    f = (comm.get("file") or "").replace("\\", "/").lower()
+    tokens = set(re.split(r"[^a-z0-9]+", f))
+    if tokens & _IO_JUNK_PATH_TOKENS:
+        return True
+    return os.path.splitext(f)[1] in _IO_DOC_EXTS
+
+
+def build_io_badges(external_io_json, node_ids):
+    """communications[].method가 call_graph 노드 id와 정확히 일치하는 건만 그 노드의 메타에
+    I/O 배지로 붙인다.
+
+    **노드도 엣지도 만들지 않는다.** 실측 3개 프로젝트에서 target의 서로 다른 값이
+    open/fetch/requests/HttpClient/FileInputStream/FileOutputStream/readFile/writeFile
+    8개뿐이었다 — 이 파일에는 "어떤 외부 시스템인지"가 아예 없고 "어떤 I/O 함수를
+    호출했는지"만 있다. 노드로 만들면 "open"이라는 노드 하나에 수백 개가 몰리거나(무의미)
+    통신 1건당 노드 1개가 되어(HPS 1,931개) 노이즈가 된다.
+
+    실측 method 정확 일치: server 101/205, client 304/395, HPS 0/1931(필터 후 0).
+    반환: {node_id: [{kind, target, file, line, desc}, ...]}
+    """
+    comms = (external_io_json or {}).get("communications") or []
+    badges = {}
+    kept = dropped = unjoined = 0
+    for c in sorted(comms, key=lambda x: str((x or {}).get("id") or "")):
+        if _io_is_noise(c):
+            dropped += 1
+            continue
+        kept += 1
+        m = c.get("method")
+        if not m or m not in node_ids:
+            unjoined += 1
+            continue
+        badges.setdefault(m, []).append({
+            "kind": c.get("type") or "io",
+            "target": c.get("target") or "",
+            "file": c.get("file") or "",
+            "line": c.get("line") or "",
+            "desc": (c.get("description") or "")[:400],
+        })
+    if comms:
+        print(f"External I/O badges: 원본 {len(comms)}건 → 노이즈 제외 {dropped}, 유효 {kept}, "
+              f"노드 매칭 실패 {unjoined}, 배지 부착 노드 {len(badges)}개")
+    return badges
 
 
 _LABEL_MAX = 40
@@ -1313,6 +1395,7 @@ def main():
     api_merge_info = {"endpoints": 0, "enriched": 0, "enriched_nodes": 0,
                       "new_nodes": 0, "new_edges": 0, "ladder": {}}
     endpoint_flows = {}
+    io_badges = {}
     call_graph_path = os.path.join(project_root, "_workspace", "index", "call_graph.json")
     cg_template = read_file(os.path.join(LIB_DIR, "call-graph.template.html"))
     nodes_data, edges_data = [], []
@@ -1366,6 +1449,8 @@ def main():
         # degree/레이아웃/모듈 집계에 일절 영향이 없다.
         endpoint_flows = build_endpoint_flows(
             load_json(os.path.join(project_root, "_workspace", "index", "data_flow.json")))
+        io_badges = build_io_badges(
+            own_external_io_json, {n.get("id") for n in raw_graph.get("nodes", [])})
 
         detected_types = set()
         nodes_data = []
@@ -1605,6 +1690,9 @@ def main():
                 # 상세 패널이 FLOWS(data_flow.json)를 조회할 키. 하나의 struts action 노드에
                 # 여러 엔드포인트가 매핑될 수 있어(실측 최대 7개) 리스트다.
                 "endpointIds": node.get("endpoint_ids", []),
+                # external_io.json 기반 I/O 배지(파일/HTTP 호출 지점). 노드로 만들지 않는
+                # 이유는 build_io_badges 주석 참조.
+                "io": io_badges.get(node.get("id"), []),
                 "inDegree": node_degree,
                 "outDegree": out_degree.get(nid, 0),
                 "hub": node_degree >= hub_threshold,
@@ -1669,13 +1757,40 @@ def main():
             # 이 경우였다).
             module_positions = compute_layout(module_ids_sorted, module_layout_edges, iterations=150, seed=7, target_spacing=180.0)
 
+            # 모듈 상세 카드용 요약(구성 타입·많이 호출되는 멤버·연결된 모듈)을 생성 시점에
+            # 굽는다. 런타임에서 계산하면 모듈을 클릭할 때마다 nodes_data 전체(실측 25,254개)를
+            # 스캔하게 되고, 그것이 바로 이 파일이 lazy DataSet 구조로 없애려던 비용이다.
+            # 모듈은 수십 개뿐이라 바이트 증가는 무시할 수준(실측 +약 20KB).
+            module_types, module_top = {}, {}
+            for n in nodes_data:
+                mk = n["extra"].get("module")
+                if not mk:
+                    continue
+                module_types.setdefault(mk, {})
+                module_types[mk][n["type"]] = module_types[mk].get(n["type"], 0) + 1
+                module_top.setdefault(mk, []).append(
+                    (in_degree.get(n["id"], 0), n["id"], n["label"]))
+            # 동률은 id로 정렬해 결정론 확보(publish-wiki 체크섬 버저닝 제약)
+            for mk in module_top:
+                module_top[mk] = sorted(module_top[mk], key=lambda t: (-t[0], t[1]))[:8]
+
+            module_nb = {}
+            for (fm, tm), cnt in module_edge_agg.items():
+                module_nb.setdefault(fm, []).append({"m": tm, "cnt": cnt, "dir": "out"})
+                module_nb.setdefault(tm, []).append({"m": fm, "cnt": cnt, "dir": "in"})
+            for mk in module_nb:
+                module_nb[mk] = sorted(module_nb[mk], key=lambda x: (-x["cnt"], x["m"]))[:8]
+
             module_nodes_js = []
             for m in module_ids_sorted:
                 x, y = module_positions.get(m, (0.0, 0.0))
                 module_nodes_js.append(json.dumps({
                     "id": m, "label": m, "count": module_node_count[m], "x": x, "y": y,
-                    "connected": m in module_with_cross_edge
-                }))
+                    "connected": m in module_with_cross_edge,
+                    "types": dict(sorted(module_types.get(m, {}).items())),
+                    "top": [{"id": i, "label": l, "deg": d} for d, i, l in module_top.get(m, [])],
+                    "nb": module_nb.get(m, []),
+                }, ensure_ascii=False))
             module_edges_js = [
                 json.dumps({"from": fm, "to": tm, "count": cnt})
                 for (fm, tm), cnt in sorted(module_edge_agg.items())
@@ -1788,6 +1903,7 @@ def main():
             .replace("{{META}}", json.dumps(meta_data, indent=2))\
             .replace("{{FLOWS}}", json.dumps(
                 endpoint_flows, ensure_ascii=False, sort_keys=True, separators=(",", ":")))\
+            .replace("{{TYPE_LABELS}}", json.dumps(btn_labels, ensure_ascii=False, sort_keys=True, indent=2))\
             .replace("{{PHYSICS_DEFAULT}}", "true" if physics_default else "false")\
             .replace("{{EDGE_SMOOTH_DYNAMIC}}", "true" if edge_smooth_dynamic else "false")
 

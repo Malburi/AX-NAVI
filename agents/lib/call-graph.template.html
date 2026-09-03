@@ -37,7 +37,8 @@
     .tool-btn.active { background: rgba(74,144,217,0.18); }
     .main { display: flex; flex: 1; overflow: hidden; }
     #graph { flex: 1; background: #0f0f1e; }
-    #detail { width: 280px; background: rgba(255,255,255,0.04); border-left: 1px solid rgba(255,255,255,0.08); padding: 16px; overflow-y: auto; flex-shrink: 0; }
+    /* 340px — 처리 흐름 카드의 메서드 체인이 280px에서는 한 줄에 두 글자씩 끊겼다. */
+    #detail { width: 340px; background: rgba(255,255,255,0.04); border-left: 1px solid rgba(255,255,255,0.08); padding: 16px; overflow-y: auto; flex-shrink: 0; }
     #detail h3 { font-size: 13px; color: #aaa; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
     #detail .empty { color: #555; font-size: 13px; line-height: 1.6; }
     .detail-card { background: rgba(255,255,255,0.06); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
@@ -57,6 +58,43 @@
     .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     .legend-note { grid-column: 1 / -1; font-size: 11px; color: #888; margin-top: 2px; }
+    /* --- 상세 패널 확장(2단계) --- */
+    .detail-card.muted { background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.10); }
+    .detail-card .value.mono { font-family: monospace; font-size: 11px; }
+    .detail-card .value.desc { font-size: 12px; line-height: 1.65; white-space: pre-wrap; color: #dfe7ef; word-break: normal; }
+    .detail-card .fqn { font-family: monospace; font-size: 10px; color: #7e8a99; margin-top: 4px; word-break: break-all; }
+    .detail-card .sub { font-size: 10px; color: #8fa3bf; margin: 8px 0 2px; text-transform: uppercase; letter-spacing: .4px; }
+    .kv { display: flex; gap: 6px; font-size: 11px; color: #ccc; margin-top: 6px; align-items: baseline; flex-wrap: wrap; }
+    .kv > span:first-child { color: #888; min-width: 42px; flex-shrink: 0; }
+    .httpm { color: #9fd3ff; }
+    .badge.ok   { background: #2d6a0022; color: #7ED321; border: 1px solid #7ED321; }
+    .badge.warn { background: #ff555522; color: #ff8080; border: 1px solid #ff8080; }
+    .node-link, .mod-link { color: #9fd3ff; cursor: pointer; border-bottom: 1px dotted rgba(159,211,255,.45); }
+    .node-link:hover, .mod-link:hover { color: #fff; border-bottom-color: #fff; }
+    .more-btn { margin-top: 8px; padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,.22); background: transparent; color: #bbb; font-size: 11px; cursor: pointer; }
+    .more-btn:hover { border-color: #4A90D9; color: #9fd3ff; }
+    .more-btn.primary { border-color: #4A90D9; color: #9fd3ff; font-weight: 600; width: 100%; }
+    .idbox { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+    .idbox code { flex: 1; font-size: 10px; color: #cfd8dc; background: rgba(0,0,0,.35); padding: 5px 6px; border-radius: 4px; word-break: break-all; user-select: all; }
+    .idbox .more-btn { margin-top: 0; flex-shrink: 0; }
+    ol.chain { list-style: none; margin: 4px 0 0; }
+    ol.chain li { display: flex; gap: 6px; align-items: baseline; font-size: 12px; padding: 3px 0; border-left: 2px solid rgba(74,144,217,.35); padding-left: 8px; margin-left: 4px; }
+    ol.chain .step { color: #4A90D9; font-size: 10px; font-weight: 700; min-width: 14px; }
+    .tbl { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 10px; margin: 2px 2px 0 0; border: 1px solid; }
+    .tbl.r { color: #7ED321; border-color: #7ED321; background: #2d6a0018; }
+    .tbl.w { color: #F5A623; border-color: #F5A623; background: #8a590018; }
+    a.tbl { cursor: pointer; }
+    .sqlkind { font-size: 9px; color: #888; margin-left: 6px; text-transform: uppercase; }
+    .hint { font-size: 12px; line-height: 1.7; color: #b8c2cc; }
+    .hint-title { font-size: 12px; font-weight: 700; color: #9fd3ff; margin-bottom: 8px; }
+    .hint-steps { margin: 0 0 10px 16px; padding: 0; }
+    .hint-steps li { margin-bottom: 7px; }
+    .hint-steps b { color: #e8eefc; }
+    .hint-note { font-size: 11px; color: #7e8a99; border-top: 1px solid rgba(255,255,255,.08); padding-top: 8px; }
+    #graphInfo summary { font-size: 13px; color: #aaa; cursor: pointer; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px; }
+    /* vis-network.min.css가 툴팁에 white-space:nowrap을 걸어놔서, 여러 줄 툴팁이 화면 밖으로
+       흘러나간다. 인라인된 라이브러리 CSS보다 뒤에 오므로 이 규칙이 이긴다. */
+    div.vis-tooltip { max-width: 420px; white-space: normal !important; font-family: 'Segoe UI', sans-serif !important; font-size: 11px !important; line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -86,17 +124,22 @@
 
   <div class="main">
     <div id="graph"></div>
+    <!-- 선택 노드를 패널 최상단으로 올렸다. 예전에는 통계 히어로 + 범례 10줄 아래에 있어서
+         클릭할 때마다 스크롤해야 했다 — 클릭마다 다시 읽는 것이 바로 이 카드다.
+         그래프 정보·범례는 <details open>으로 감싸 첫 로드 모습은 유지하면서 접을 수 있게 했다.
+         viewModeLabel은 details 밖에 둔다(현재 보고 있는 단계는 절대 숨겨지면 안 된다). -->
     <div id="detail">
-      <h3>그래프 정보</h3>
-      <div id="viewModeLabel" style="font-size:12px;color:#9fd3ff;font-weight:600;margin-bottom:10px;"></div>
-      {{STAT_SUMMARY}}
-      <h3>범례</h3>
-      <div class="legend-grid">
-        {{LEGEND_ITEMS}}
-      </div>
-      <hr style="border-color:rgba(255,255,255,0.08);margin:16px 0;" />
+      <div id="viewModeLabel" style="font-size:12px;color:#9fd3ff;font-weight:600;margin-bottom:12px;"></div>
       <h3>선택 노드</h3>
-      <div id="detailContent" class="empty">노드를 클릭하세요.</div>
+      <div id="detailContent" class="empty"></div>
+      <hr style="border-color:rgba(255,255,255,0.08);margin:16px 0;" />
+      <details id="graphInfo" open>
+        <summary>그래프 정보 · 범례</summary>
+        {{STAT_SUMMARY}}
+        <div class="legend-grid">
+          {{LEGEND_ITEMS}}
+        </div>
+      </details>
     </div>
   </div>
 
@@ -164,6 +207,11 @@
     // 키는 api_contract.json의 엔드포인트 id이며, 노드의 META[id].endpointIds로 조회한다.
     // 노드·엣지를 만들지 않는 메타데이터 전용 — 이유는 wiki_generator.build_endpoint_flows 주석 참조.
     const FLOWS = {{FLOWS}};
+
+    // 타입 → 한국어 라벨. 범례·필터칩·상세 패널이 같은 문자열을 쓰도록 wiki_generator.py의
+    // btn_labels 하나에서 생성한다(예전엔 범례에만 있어서 상세 패널 배지는 "ui_event" 같은
+    // 영문 내부 값을 그대로 노출했다).
+    const TYPE_LABEL = {{TYPE_LABELS}};
 
     // 상세 패널은 지금까지 값을 innerHTML에 그대로 보간했다. note가 61개(2.5%)일 때는 우연히
     // 문제가 없었지만, 엔드포인트 설명 421개 + 흐름 서술 330개가 새로 흘러들어오면서 코드를
@@ -234,7 +282,7 @@
       const src = nodeById.get(id);
       const pos = (typeof src.x === 'number') ? { x: src.x, y: src.y } : positionNear(anchorForNewPos || { x: 0, y: 0 }, 80);
       expandedIds.add(id);
-      nodes.add({ ...src, hidden: !activeTypes.has(nodeTypeMap[id]), x: pos.x, y: pos.y });
+      nodes.add({ ...src, hidden: !activeTypes.has(nodeTypeMap[id]), x: pos.x, y: pos.y, title: tooltipFor(id) });
       return true;
     }
 
@@ -356,7 +404,11 @@
       document.getElementById('resetHighlightBtn').style.display = inFn ? '' : 'none';
       document.getElementById('physicsToggle').style.display = inFn ? '' : 'none';
       document.getElementById('flatViewBtn').style.display = inFn ? 'none' : '';
-      const totalForScope = currentModule === null ? nodesData.length : moduleMemberIds(currentModule).length;
+      // 모듈 멤버 수는 MODULE_NODES에 count로 구워져 있다 — moduleMemberIds()는 nodesData
+      // 전체(실측 25,254개)를 스캔하므로 뷰 전환마다 부르지 않는다.
+      const totalForScope = currentModule === null
+        ? nodesData.length
+        : ((moduleById.get(currentModule) || {}).count ?? moduleMemberIds(currentModule).length);
       document.getElementById('collapseToHubBtn').style.display = (inFn && collapseTargetIds.size < totalForScope) ? '' : 'none';
       updateViewModeLabel();
     }
@@ -393,9 +445,94 @@
       const connectedModuleIds = MODULE_NODES.filter(m => m.connected).map(m => 'module:' + m.id);
       network.fit(connectedModuleIds.length ? { nodes: connectedModuleIds } : undefined);
       updateChromeForView();
+      renderEmptyState();
+    }
+
+    // ---- 2단계: 모듈 노드 상세. 예전에는 모듈을 클릭하면 곧바로 드릴다운하고 return해서
+    // 오른쪽 패널이 안내문 그대로였다 — "첫 클릭이 아무것도 안 한다"는 인상의 직접 원인이다.
+    // types/top/nb는 wiki_generator.py가 생성 시점에 구워 넣는다(클릭마다 nodesData
+    // 25,254개를 스캔하는 O(N) 작업을 런타임에서 없애기 위함).
+    function showModuleDetail(moduleKey) {
+      const dc = document.getElementById('detailContent');
+      const m = moduleById.get(moduleKey);
+      if (!m) return;
+      const inside = (currentView === 'function' && currentModule === moduleKey);
+      const typeRows = Object.keys(m.types || {})
+        .sort((a, b) => m.types[b] - m.types[a] || (a < b ? -1 : 1))
+        .map(t => {
+          const col = (COLORS[t] || {}).border || '#888';
+          return `<div class="legend-item"><span class="legend-dot" style="background:${col}"></span>`
+               + `${esc(TYPE_LABEL[t] || t)}<b style="margin-left:auto">${m.types[t]}</b></div>`;
+        }).join('');
+      const top = (m.top || []).map(t =>
+        `<li><a class="node-link" data-goto="${esc(t.id)}">${esc(String(t.label).replace(/\n/g, ' '))}</a>`
+        + `<span class="sqlkind">in ${t.deg}</span></li>`).join('');
+      const nb = (m.nb || []).map(x =>
+        `<li><a class="mod-link" data-module="${esc(x.m)}">${x.dir === 'out' ? '→' : '←'} ${esc(x.m)}</a>`
+        + `<span class="sqlkind">${x.cnt}회</span></li>`).join('');
+
+      dc.classList.remove('empty');
+      dc.innerHTML = `
+        <div class="detail-card">
+          <div class="label">모듈 · 2단계${inside ? ' · 지금 내부를 보고 있음' : ''}</div>
+          <div class="value">${esc(m.label)}</div>
+          <div class="fqn">노드 ${m.count}개 · 모듈 간 호출 ${m.connected ? '있음' : '없음(내부에서만 호출)'}</div>
+          ${inside ? '' : `<div style="margin-top:8px"><button class="more-btn primary" data-drill="${esc(moduleKey)}">▶ 이 모듈 내부 보기 (더블클릭도 동일)</button></div>`}
+        </div>
+        ${typeRows ? `<div class="detail-card"><div class="label">구성</div><div class="legend-grid">${typeRows}</div></div>` : ''}
+        ${top ? `<div class="detail-card"><div class="label">많이 호출되는 멤버</div><ul class="conn-list">${top}</ul></div>` : ''}
+        ${nb ? `<div class="detail-card"><div class="label">연결된 모듈</div><ul class="conn-list">${nb}</ul></div>` : ''}
+        ${m.connected ? '' : `<div class="detail-card muted"><div class="value" style="font-size:11px;color:#9aa5b1">다른 모듈과의 직접 호출이 잡히지 않았습니다 — 호출이 모듈 내부에서 끝나거나, 진입점이 리플렉션·설정파일처럼 정적 분석이 못 보는 경로일 수 있습니다.</div></div>`}
+      `;
+      document.getElementById('detail').scrollTop = 0;
+      if (currentView === 'module') network.selectNodes(['module:' + moduleKey]);
+    }
+
+    // 흐름 체인·호출 목록·테이블 칩의 링크에서 임의 노드로 점프한다. findBtn 핸들러와
+    // 완전히 같은 경로(revealNeighbors → network.focus → showDetail)를 쓴다.
+    function gotoNode(id) {
+      if (!nodeById.has(id)) return;
+      if (currentView !== 'function') {
+        // 1단계에서 링크를 눌렀다 → 그 노드가 속한 모듈 내부로 한 번에 들어간다(3단 구조 유지).
+        const n = nodeById.get(id);
+        enterFunctionView(n.module || null);
+        if (!inScope(id)) enterFunctionView(null);
+      } else if (!inScope(id)) {
+        // 모듈 상세뷰는 스코프가 그 모듈로 제한돼 밖의 노드를 펼칠 수 없다. 흐름 추적은
+        // 모듈 경계를 계속 넘나들므로 여기서 한 번 제한 없는 전체 그래프로 올라간 뒤 머문다
+        // (모듈마다 다시 전환하면 클릭할 때마다 DataSet 리셋이 반복돼 체감이 나빠진다).
+        enterFunctionView(null);
+      }
+      revealNeighbors(id);
+      network.focus(id, { scale: 1.3, animation: true });
+      showDetail(id);
+    }
+
+    // 첫 진입 사용자는 모듈 → 함수 → 노드 3단 구조가 있다는 것도, "전체 함수 그래프(고급)"이
+    // 별개 모드라는 것도 모른다. 항상 보이고 이미 존재하는 슬롯(#detailContent 빈 상태)에
+    // 그 구조를 적는다 — 외부 에셋·모달·투어 없음(self-contained 제약).
+    function renderEmptyState() {
       const dc = document.getElementById('detailContent');
       dc.classList.add('empty');
-      dc.innerHTML = '모듈을 클릭하면 내부 호출 관계를 볼 수 있습니다.';
+      if (currentView === 'module') {
+        dc.innerHTML = `<div class="hint"><div class="hint-title">이 그래프는 3단 구조입니다</div>
+          <ol class="hint-steps">
+            <li><b>1단계 · 모듈 개요</b> — 지금 이 화면. 박스 하나가 패키지/폴더 하나이고, 선 위 숫자는 모듈 간 호출 횟수입니다.</li>
+            <li><b>2단계 · 모듈 내부</b> — 모듈을 <b>클릭</b>하면 여기에 요약(구성·주요 멤버·연결 모듈)이 나오고, <b>더블클릭</b>하면 그 모듈 안의 실제 함수 호출 그래프로 들어갑니다.</li>
+            <li><b>3단계 · 노드 상세</b> — 함수·엔드포인트·테이블을 클릭하면 설명·처리 흐름·호출 관계가 여기 표시되고, 이웃 노드가 한 겹 펼쳐집니다.</li>
+          </ol>
+          <div class="hint-note">모듈 경계를 무시하고 전부 한 캔버스에서 보려면 상단의 <b>전체 함수 그래프(고급)</b>. 데이터는 정적 분석 결과이므로 리플렉션·설정 기반 동적 호출은 빠져 있습니다.</div></div>`;
+      } else {
+        dc.innerHTML = `<div class="hint"><div class="hint-title">${currentModule === null ? '전체 함수 그래프(고급)' : '모듈 내부 · 2단계'}</div>
+          <ol class="hint-steps">
+            <li>노드를 <b>클릭</b> — 상세 정보 + 이웃 한 겹 펼치기</li>
+            <li>노드를 <b>더블클릭</b> — 그 노드와 이웃만 강조 (해제: 상단 <b>강조 초기화</b>)</li>
+            <li>상세 카드의 <b>파란 링크</b> — 처리 흐름을 따라 다른 노드로 이동</li>
+          </ol>
+          <div class="hint-note">${currentModule === null
+              ? '이 모드는 모듈 스코프 제한이 없어 어떤 노드든 펼칠 수 있습니다. 화면이 복잡하면 <b>초기 뷰로</b>.'
+              : '펼침은 이 모듈 안으로 제한됩니다. 다른 모듈로 가려면 <b>← 모듈 개요로</b>.'}</div></div>`;
+      }
     }
 
     // moduleKey가 null이면 "전체 함수 그래프(고급)" — 예전 기본 화면(전역 허브+이웃)과 동일하다.
@@ -446,7 +583,7 @@
       seedIds.forEach(id => expandedIds.add(id));
       nodes.add([...seedIds].map(id => {
         const src = nodeById.get(id);
-        return { ...src, hidden: !activeTypes.has(nodeTypeMap[id]) };
+        return { ...src, hidden: !activeTypes.has(nodeTypeMap[id]), title: tooltipFor(id) };
       }));
       const seedEdges = edgesData.filter(e => seedIds.has(e.from) && seedIds.has(e.to));
       seedEdges.forEach(e => addedEdgeIds.add(e.id));
@@ -460,9 +597,10 @@
       network.fit();
       updateChromeForView();
 
-      const dc = document.getElementById('detailContent');
-      dc.classList.add('empty');
-      dc.innerHTML = '노드를 클릭하세요.';
+      // 모듈로 드릴다운한 직후에는 "노드를 클릭하세요"보다 그 모듈이 무엇인지 보여주는 게
+      // 맞다 — 방금 한 행동의 결과를 패널이 확인해주고, 3단계로 갈 다음 행동도 안내된다.
+      if (moduleKey !== null && moduleById.has(moduleKey)) showModuleDetail(moduleKey);
+      else renderEmptyState();
     }
 
     function syncPhysicsBtn() {
@@ -490,87 +628,237 @@
       return `<span${unsure}>[${esc(EDGE_TYPE_LABEL[t] || t)}]</span> `;
     }
 
+    // 흐름 체인 표시용 축약. FLOWS에는 전체 노드 id가 실려 있어야 클릭 이동이 되므로,
+    // 화면용 축약은 여기서 한다(생성 시점에 축약해 버리면 링크를 만들 수 없다).
+    function shortMethod(fqn) {
+      const p = String(fqn).split('.');
+      return p.length > 2 ? p.slice(-2).join('.') : String(fqn);
+    }
+
     // 엔드포인트 노드의 처리 흐름 카드 — data_flow.json이 준 "엔드포인트 → 메서드 체인 →
     // SQL → 읽기/쓰기 테이블 + 서술". 하나의 노드에 엔드포인트가 여러 개 매핑될 수 있어
-    // (실측 최대 7개) endpointIds를 순회한다. 쓰기 테이블만 주황으로 강조하는 이유는
-    // 그것이 부작용(side effect) 지점이라 영향도 판단에서 가장 먼저 봐야 하기 때문이다.
+    // (실측 최대 7개) endpointIds를 순회한다.
+    // 체인의 각 단계와 테이블 칩은 실제 노드 id라서 클릭하면 그 노드로 이동한다(gotoNode) —
+    // 사용자가 요청 처리 흐름을 실제로 "걸어서" 따라갈 수 있다.
+    // 쓰기 테이블만 주황으로 강조하는 이유는 그것이 부작용 지점이라 영향도 판단에서 가장
+    // 먼저 봐야 하기 때문이다.
     function flowCards(m) {
       const ids = m.endpointIds || [];
       if (!ids.length) return '';
       return ids.map(eid => {
         const f = FLOWS[eid];
         if (!f) return '';
-        const row = (label, body, color) =>
-          `<div class="value" style="font-size:11px;margin-top:5px${color ? ';color:' + color : ''}">↳ ${label} ${body}</div>`;
+        const chain = (f.methods || []).map((nid, i) => {
+          const inner = nodeById.has(nid)
+            ? `<a class="node-link" data-goto="${esc(nid)}">${esc(shortMethod(nid))}</a>`
+            : `<span style="opacity:.5">${esc(shortMethod(nid))}</span>`;
+          return `<li><span class="step">${i + 1}</span>${inner}</li>`;
+        }).join('');
+        const chips = (arr, cls, icon) => (arr || []).map(t => {
+          const tid = 'db_table:' + t;
+          return nodeById.has(tid)
+            ? `<a class="tbl ${cls}" data-goto="${esc(tid)}">${icon} ${esc(t)}</a>`
+            : `<span class="tbl ${cls}">${icon} ${esc(t)}</span>`;
+        }).join(' ');
+        const rd = chips(f.tr, 'r', '읽기'), wr = chips(f.tw, 'w', '쓰기');
         return `<div class="detail-card">
           <div class="label">처리 흐름${f.conf ? ' · 신뢰도 ' + esc(f.conf) : ''}</div>
-          ${f.note ? `<div class="value" style="font-size:12px;line-height:1.65;white-space:pre-wrap">${esc(f.note)}</div>` : ''}
-          ${f.nm ? row(`메서드 ${f.nm}개:`, esc(f.methods.join(' → ')) + (f.nm > f.methods.length ? ' …' : '')) : ''}
-          ${f.nq ? row(`SQL ${f.nq}개:`, `<span style="font-family:monospace">${esc(f.sqls.join(', '))}</span>` + (f.nq > f.sqls.length ? ' …' : '')) : ''}
-          ${f.tr && f.tr.length ? row('읽기:', esc(f.tr.join(', ')), '#7ED321') : ''}
-          ${f.tw && f.tw.length ? row('쓰기:', esc(f.tw.join(', ')), '#F5A623') : ''}
+          ${f.note ? `<div class="value desc" style="margin-bottom:8px">${esc(f.note)}</div>` : ''}
+          ${chain ? `<div class="sub">메서드 ${f.nm}개${f.nm > (f.methods || []).length ? ` (앞 ${f.methods.length}개만)` : ''}</div><ol class="chain">${chain}</ol>` : ''}
+          ${f.nq ? `<div class="kv"><span>SQL</span><span class="mono">${esc((f.sqls || []).join(', '))}${f.nq > (f.sqls || []).length ? ' … 외 ' + (f.nq - f.sqls.length) + '개' : ''}</span></div>` : ''}
+          ${rd ? `<div class="kv"><span>테이블</span><span>${rd}</span></div>` : ''}
+          ${wr ? `<div class="kv"><span></span><span>${wr}</span></div>` : ''}
         </div>`;
       }).join('');
     }
 
-    function showDetail(id) {
+    // 라벨을 짧게 깎았으므로 전체 FQN·파일·설명 앞부분을 네이티브 툴팁으로 되돌려준다.
+    // 생성 시점에 25,254개 노드에 title을 굽지 않고 DataSet 삽입 시점에 붙이는 이유:
+    // 노드당 ~120바이트면 전체 3MB가 늘어나는데, 실제로 삽입되는 건 expandedIds뿐이다.
+    function tooltipFor(id) {
+      const m = META[id] || {};
+      const lbl = getLabel(id);
+      const out = ['<b>' + esc(lbl) + '</b>'];
+      if (id !== lbl) out.push('<span style="opacity:.65">' + esc(id) + '</span>');
+      if (m.file) out.push(esc(m.file + (m.line ? ':' + m.line : '')));
+      if (m.note) out.push('<span style="opacity:.85">' + esc(String(m.note).slice(0, 180)) + '</span>');
+      return out.join('<br>');
+    }
+
+    // ---- 목록 캡: 실측 in-degree 1,744짜리 허브가 있다. 전부 <li>로 만들면 클릭 한 번에
+    // DOM 수천 개가 생겨 패널이 얼어붙는다. LIST_STEP개만 그리고 나머지는 "N개 더 보기"로
+    // LIST_MORE개씩 늘린다 — 늘릴 때도 showDetail을 다시 호출해 렌더 경로를 하나로 유지.
+    const LIST_STEP = 20, LIST_MORE = 100, METHOD_CAP = 40, TABLE_SIDE_CAP = 30;
+    let detailState = { id: null, outCap: LIST_STEP, inCap: LIST_STEP };
+
+    function connItem(otherId, arrow, e) {
+      const note = e && e.note ? `<div class="conn-note">${esc(e.note)}</div>` : '';
+      return `<li>${edgeTag(e)}<span class="conn-arrow">${arrow}</span>`
+           + `<a class="node-link" data-goto="${esc(otherId)}">${esc(getLabel(otherId))}</a>${note}</li>`;
+    }
+
+    function connCard(title, items, cap, moreKey) {
+      if (!items.length) return '';
+      const shown = items.slice(0, cap);
+      const rest = items.length - shown.length;
+      const more = rest > 0
+        ? `<button class="more-btn" data-more="${moreKey}">${rest}개 더 보기 (전체 ${items.length}개)</button>` : '';
+      return `<div class="detail-card"><div class="label">${title} (${items.length})</div>`
+           + `<ul class="conn-list">${shown.join('')}</ul>${more}</div>`;
+    }
+
+    // "설명이 없다"를 카드 하나 조용히 사라지는 것으로 표현하면(1단계 이전 동작, 노드
+    // 94.9%가 여기 해당) 사용자에게는 "도구가 고장났다"로 읽힌다. 명시적으로 없다고 말하고,
+    // 의미가 실제로 어디 있는지(trace-logic)와 그때 붙여넣을 id를 함께 준다.
+    function descCard(id, m) {
+      if (m.note) {
+        return `<div class="detail-card"><div class="label">설명</div>`
+             + `<div class="value desc">${esc(m.note)}</div></div>`;
+      }
+      return `<div class="detail-card muted">
+        <div class="label">설명 없음</div>
+        <div class="value" style="font-size:11px;line-height:1.65;color:#9aa5b1">
+          이 노드에는 <b>정적 분석으로 추출한 호출 관계만</b> 있습니다 — 기능 설명은 없습니다.
+          무엇을 하는 코드인지 알아야 하면 Claude Code에서 아래 id로 <code>/trace-logic</code>을 실행하세요.
+          API 엔드포인트·DB 테이블에는 대부분 설명이 붙어 있습니다(범례의 ⚡ / 🗄).
+        </div>
+        <div class="idbox"><code>${esc(id)}</code>
+        <button class="more-btn" data-copy="${esc(id)}">복사</button></div></div>`;
+    }
+
+    // DB 테이블 노드에서 사실상 유일하게 궁금한 정보는 "누가 읽고 누가 쓰는가"다. query 엣지의
+    // label에 SQL 종류(select/insert/update/delete, 실측 소문자)가 이미 있어 추가 데이터 없이 갈린다.
+    const WRITE_SQL = /^(insert|update|delete|merge|upsert|truncate)/i;
+    function tableCard(id) {
+      const q = (edgesByNode.get(id) || []).filter(e => e.edgeType === 'query' && e.to === id);
+      if (!q.length) return '';
+      const readers = [], writers = [];
+      q.forEach(e => (WRITE_SQL.test(e.label || '') ? writers : readers).push(e));
+      const li = arr => arr.slice(0, TABLE_SIDE_CAP).map(e =>
+        `<li><a class="node-link" data-goto="${esc(e.from)}">${esc(getLabel(e.from))}</a>`
+        + `<span class="sqlkind">${esc((e.label || 'sql').toUpperCase())}</span></li>`).join('');
+      const over = arr => arr.length > TABLE_SIDE_CAP
+        ? `<div class="conn-note">… 외 ${arr.length - TABLE_SIDE_CAP}개</div>` : '';
+      return `<div class="detail-card"><div class="label">이 테이블을 쓰는 코드 (${q.length})</div>`
+        + (writers.length ? `<div class="sub">✎ 쓰기 ${writers.length}</div><ul class="conn-list">${li(writers)}</ul>${over(writers)}` : '')
+        + (readers.length ? `<div class="sub">👁 읽기 ${readers.length}</div><ul class="conn-list">${li(readers)}</ul>${over(readers)}` : '')
+        + '</div>';
+    }
+
+    // external_io.json 기반 I/O 배지. 노드가 아니라 이 노드에 붙는 정보로만 표시한다.
+    function ioCard(m) {
+      const io = m.io || [];
+      if (!io.length) return '';
+      return `<div class="detail-card"><div class="label">외부 I/O (${io.length})</div>`
+        + io.map(x => `<div class="value" style="font-size:11px;margin-bottom:4px">`
+            + `[${esc(x.kind)}] <span class="mono">${esc(x.target)}</span>`
+            + (x.desc ? ` — ${esc(x.desc)}` : '') + `</div>`).join('')
+        + '</div>';
+    }
+
+    function showDetail(id, keepCaps) {
       const dc = document.getElementById('detailContent');
       const m = META[id] || {};
+      if (!keepCaps || detailState.id !== id) detailState = { id: id, outCap: LIST_STEP, inCap: LIST_STEP };
       const lbl = getLabel(id);
       const type = nodeTypeMap[id];
       const c = COLORS[type];
       const typeColor = c ? c.border : '#aaa';
-      const connEdges = edgesData.filter(e => e.from === id || e.to === id);
-      const edgeNote = e => e.note ? `<div class="conn-note">${esc(e.note)}</div>` : '';
-      const outgoing = connEdges.filter(e => e.from === id).map(e => `<li>${edgeTag(e)}<span class="conn-arrow">→</span>${esc(getLabel(e.to))}${edgeNote(e)}</li>`).join('');
-      const incoming = connEdges.filter(e => e.to === id).map(e => `<li>${edgeTag(e)}<span class="conn-arrow">←</span>${esc(getLabel(e.from))}${edgeNote(e)}</li>`).join('');
 
+      // 예전에는 클릭마다 edgesData 전체(실측 xu43-client 21,814개)를 두 번 filter했다.
+      // edgesByNode는 이 노드의 엣지만 O(1)로 준다 — 인터랙션 비용을 그래프 전체 크기에서
+      // 분리한다(이 파일의 lazy DataSet 설계와 같은 원칙).
+      const my = edgesByNode.get(id) || [];
+      const outItems = [], inItems = [];
+      for (let i = 0; i < my.length; i++) {
+        const e = my[i];
+        if (e.from === id) outItems.push(connItem(e.to, '→', e));
+        if (e.to === id) inItems.push(connItem(e.from, '←', e));
+      }
+
+      const bdg = (txt, col) => `<span class="badge" style="background:${col}22;color:${col};border:1px solid ${col}">${esc(txt)}</span>`;
       const badges = [];
-      if (m.type) badges.push(`<span class="badge" style="background:${typeColor}22;color:${typeColor};border:1px solid ${typeColor}">${esc(m.type)}</span>`);
+      if (m.type) badges.push(bdg(TYPE_LABEL[m.type] || m.type, typeColor));
       if (m.visibility) badges.push(`<span class="badge" style="background:#33333322;color:#ccc;border:1px solid #555">${esc(m.visibility)}</span>`);
       if (m.static) badges.push(`<span class="badge" style="background:#33333322;color:#ccc;border:1px solid #555">static</span>`);
-      if (m.hub) badges.push(`<span class="badge" style="background:#4A90D922;color:#4A90D9;border:1px solid #4A90D9">◎ 허브 (in ${m.inDegree})</span>`);
-      if (m.dead) badges.push(`<span class="badge" style="background:#ff555522;color:#ff5555;border:1px solid #ff5555">☠ 데드 코드 후보</span>`);
-      if (m.extends) badges.push(`<span class="badge" style="background:#9B59B622;color:#9B59B6;border:1px solid #9B59B6">extends ${esc(m.extends)}</span>`);
-      (m.implements || []).forEach(i => badges.push(`<span class="badge" style="background:#9B59B622;color:#9B59B6;border:1px solid #9B59B6">implements ${esc(i)}</span>`));
+      if (m.hub) badges.push(bdg('◎ 허브 (in ' + (m.inDegree ?? inItems.length) + ')', '#4A90D9'));
+      if (m.dead) badges.push(bdg('☠ 데드 코드 후보', '#ff5555'));
+      if (m.extends) badges.push(bdg('extends ' + m.extends, '#9B59B6'));
+      (m.implements || []).forEach(i => badges.push(bdg('implements ' + i, '#9B59B6')));
 
       dc.classList.remove('empty');
       dc.innerHTML = `
         <div class="detail-card">
-          <div class="label">노드</div>
+          <div class="label">${esc(TYPE_LABEL[m.type] || '노드')} · 3단계</div>
           <div class="value">${esc(lbl)}</div>
-          ${lbl !== id ? `<div style="font-family:monospace;font-size:10px;color:#7e8a99;margin-top:4px;word-break:break-all">${esc(id)}</div>` : ''}
+          ${lbl !== id ? `<div class="fqn">${esc(id)}</div>` : ''}
           <div style="margin-top:6px">${badges.join(' ')}</div>
         </div>
-        ${m.api  ? `<div class="detail-card"><div class="label">API 엔드포인트</div><div class="value" style="font-family:monospace;font-size:12px;color:#9fd3ff">${esc(m.api)}</div></div>` : ''}
-        ${m.note ? `<div class="detail-card"><div class="label">설명</div><div class="value" style="font-size:12px;line-height:1.65;white-space:pre-wrap">${esc(m.note)}</div></div>` : ''}
+        ${m.api ? `<div class="detail-card"><div class="label">API 엔드포인트</div><div class="value mono" style="font-size:12px;color:#9fd3ff">${esc(m.api)}</div></div>` : ''}
+        ${descCard(id, m)}
         ${flowCards(m)}
-        ${m.file ? `<div class="detail-card"><div class="label">파일</div><div class="value" style="font-family:monospace;font-size:11px">${esc(m.file)}${m.line ? ':' + esc(m.line) : ''}</div></div>` : ''}
-        ${m.signature ? `<div class="detail-card"><div class="label">시그니처</div><div class="value" style="font-family:monospace;font-size:11px;white-space:pre-wrap">${esc(m.signature)}</div></div>` : ''}
-        ${m.annotations && m.annotations.length ? `<div class="detail-card"><div class="label">애노테이션</div><div class="value" style="font-family:monospace;font-size:11px">${esc(m.annotations.join(' '))}</div></div>` : ''}
+        ${tableCard(id)}
+        ${ioCard(m)}
+        ${m.file ? `<div class="detail-card"><div class="label">파일</div><div class="value mono">${esc(m.file)}${m.line ? ':' + esc(m.line) : ''}</div></div>` : ''}
+        ${m.signature ? `<div class="detail-card"><div class="label">시그니처</div><div class="value mono" style="white-space:pre-wrap">${esc(m.signature)}</div></div>` : ''}
+        ${m.annotations && m.annotations.length ? `<div class="detail-card"><div class="label">애노테이션</div><div class="value mono">${esc(m.annotations.join(' '))}</div></div>` : ''}
         ${m.dead && m.deadReason ? `<div class="detail-card"><div class="label">데드 코드 사유</div><div class="value" style="font-size:11px">${esc(m.deadReason)} (정적 분석 기준, 리플렉션 등 동적 호출 미탐지 — 삭제 전 확인 필요)</div></div>` : ''}
-        ${m.methods && m.methods.length ? `<div class="detail-card"><div class="label">메서드 (${m.methods.length})</div><div class="value" style="font-size:11px">${esc(m.methods.join(', '))}</div></div>` : ''}
-        <div class="detail-card"><div class="label">연결 수</div><div class="value" style="font-size:12px">← 호출처 ${m.inDegree ?? connEdges.filter(e => e.to === id).length}개 · 호출 대상 → ${m.outDegree ?? connEdges.filter(e => e.from === id).length}개</div></div>
-        ${outgoing ? `<div class="detail-card"><div class="label">호출 대상 (→ ${connEdges.filter(e => e.from === id).length}개)</div><ul class="conn-list">${outgoing}</ul></div>` : ''}
-        ${incoming ? `<div class="detail-card"><div class="label">호출처 (← ${connEdges.filter(e => e.to === id).length}개)</div><ul class="conn-list">${incoming}</ul></div>` : ''}
+        ${m.methods && m.methods.length ? `<div class="detail-card"><div class="label">메서드 (${m.methods.length})</div><div class="value" style="font-size:11px">${esc(m.methods.slice(0, METHOD_CAP).join(', '))}${m.methods.length > METHOD_CAP ? ' … 외 ' + (m.methods.length - METHOD_CAP) + '개' : ''}</div></div>` : ''}
+        <div class="detail-card"><div class="label">연결 수</div><div class="value" style="font-size:12px">← 호출처 ${inItems.length}개 · 호출 대상 → ${outItems.length}개</div></div>
+        ${connCard('호출 대상 →', outItems, detailState.outCap, 'out')}
+        ${connCard('← 호출처', inItems, detailState.inCap, 'in')}
       `;
+      if (!keepCaps) document.getElementById('detail').scrollTop = 0;
       network.selectNodes([id]);
     }
 
+    // 제스처 규칙: 단일 클릭 = 선택 + 설명, 더블 클릭 = 이동/강조.
+    // 모듈 뷰에서 단일 클릭이 곧바로 드릴다운하던 것을 상세 카드 표시로 바꿨다 — 사용자가
+    // "노드를 눌렀을때 설명도 안나온다"고 한 것의 절반이 이 지점이었다(모듈 뷰가 기본
+    // 시작 화면이라 첫 클릭이 항상 여기로 온다).
     network.on('click', params => {
-      if (!params.nodes.length) {
-        const dc = document.getElementById('detailContent');
-        dc.classList.add('empty');
-        dc.innerHTML = currentView === 'module' ? '모듈을 클릭하면 내부 호출 관계를 볼 수 있습니다.' : '노드를 클릭하세요.';
-        return;
-      }
+      if (!params.nodes.length) { renderEmptyState(); return; }
       const id = params.nodes[0];
       if (currentView === 'module') {
-        if (id.startsWith('module:')) enterFunctionView(id.slice('module:'.length));
+        if (String(id).startsWith('module:')) showModuleDetail(String(id).slice('module:'.length));
         return;
       }
       revealNeighbors(id);
       showDetail(id);
+    });
+
+    // 상세 패널의 링크·버튼은 이벤트 위임으로 처리한다 — (1) 노드 id에 따옴표·역슬래시·공백이
+    // 섞여 있어 inline onclick="fn('id')"을 안전하게 만들 수 없고, (2) 카드를 매번 통째로
+    // 다시 그리므로 개별 addEventListener는 리스너 누수가 된다.
+    document.getElementById('detailContent').addEventListener('click', ev => {
+      const t = ev.target.closest('[data-goto],[data-more],[data-drill],[data-module],[data-copy]');
+      if (!t) return;
+      const d = t.dataset;
+      if (d.goto !== undefined) { gotoNode(d.goto); return; }
+      if (d.drill !== undefined) { enterFunctionView(d.drill); return; }
+      if (d.module !== undefined) {
+        showModuleDetail(d.module);
+        if (currentView === 'module') network.focus('module:' + d.module, { scale: 1.0, animation: true });
+        return;
+      }
+      if (d.copy !== undefined) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(d.copy).then(
+            () => { t.textContent = '복사됨'; }, () => { t.textContent = '수동 복사'; });
+        } else {
+          // file:// + 구형 브라우저 폴백 — 앞의 <code>를 선택 상태로 만들어 Ctrl+C 가능하게.
+          const codeEl = t.previousElementSibling;
+          if (codeEl) {
+            const r = document.createRange(); r.selectNodeContents(codeEl);
+            const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+          }
+        }
+        return;
+      }
+      if (d.more) {
+        if (d.more === 'out') detailState.outCap += LIST_MORE; else detailState.inCap += LIST_MORE;
+        showDetail(detailState.id, true);
+      }
     });
 
     // 아래 세 함수(resetHighlight/doubleClick/collapseToHubBtn)는 전부 "현재 화면에 있는
@@ -581,6 +869,18 @@
     }
 
     network.on('doubleClick', params => {
+      if (currentView === 'module') {
+        // 모듈 개요에서 더블클릭을 드릴다운에 배정해도 제스처 충돌이 없다: (1) 모듈 노드는
+        // 지연 확장(revealNeighbors) 대상이 아니고, (2) function 뷰의 더블클릭 기능인
+        // "이웃 강조"는 그 짝인 강조 초기화·필터·물리엔진 토글이 모듈 뷰에서 전부
+        // display:none이라(updateChromeForView) 이 뷰에서는 원래 도달 불가능한 기능이었다.
+        // vis는 click을 doubleClick보다 먼저 쏘므로 더블클릭은 "모듈 카드 표시 → 진입"으로
+        // 자연히 이어진다(진입 후 패널이 같은 모듈 카드를 다시 보여줘 연속적으로 읽힌다).
+        if (params.nodes.length && String(params.nodes[0]).startsWith('module:')) {
+          enterFunctionView(String(params.nodes[0]).slice('module:'.length));
+        }
+        return;
+      }
       if (!params.nodes.length) { resetHighlight(); return; }
       const id = params.nodes[0];
       const keep = new Set([id, ...network.getConnectedNodes(id)]);
