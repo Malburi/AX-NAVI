@@ -66,6 +66,7 @@ harness가 설치된 대상 프로젝트에서 개선/개발 요청은 배포된
 | 스캐폴드 | scaffold-feature | `스캐폴드 쿠폰 발급` |
 | 마이그 | plan-migration | `마이그 iBatis → MyBatis` |
 | SQL리뷰, 쿼리리뷰 | review-sql | `SQL리뷰 selectOrderList` |
+| 찾아, 찾기 | find-feature | `찾아 결제 승인`, `쿠폰 찾기` |
 
 ### 4-2. 범용 문구 (2026-08-06 신규 — 게이트 경로가 기본값)
 
@@ -103,10 +104,12 @@ writer가 프로젝트별로 직접 작성하는 스킬(trace / find-logic / sca
  ├─ "개발해줘/구현해줘/새 기능"          → scaffold-feature  (컨벤션 기반 생성, 기본값)
  ├─ "수정해줘/고쳐줘/개선해줘"           → safe-modify       (게이트 포함, 기본값)
  ├─ "알아서 해줘/그냥 해줘/바이브로"      → vibe              (독립 에이전트 게이트 생략, 명시적 opt-out)
+ ├─ "찾아 [대상]/찾기 [대상]/[대상] 찾아줘" → find-feature      (코드 위치 탐색, read-only)
  └─ "/ax-navi:<스킬명>"               → 해당 스킬          (확정 경로)
 ```
 
 - **기본값 = 게이트 경로.** 범용 요청은 harness의 인덱스·패턴·안전성 평가를 태운다.
+- **find 축약(찾아/찾기)은 find-feature로 직접 라우팅한다.** `/find`는 슬래시 입력 전용 별칭(find-feature로 위임)이므로, 자연어 "찾아 [대상]"을 `/find`로 우회시키면 위임 홉만 늘고 결과는 같다. 대신 bare "찾아줘"는 대상어가 없거나 버그·수정 맥락이면 find가 아니라 safe-modify 성격일 수 있어 하드 트리거로 고정하지 않는다.
 - **독립 에이전트 게이트 생략은 opt-out 명시로만.** 사용자가 "알아서/그냥/바이브"라고 말했을 때만 vibe가 탄다. 다만 코드 컨벤션 확인과 최소 실행 검증은 어느 경로에서도 생략하지 않는다.
 - safe-modify vs scaffold-feature 분기: 기존 코드 변경이면 safe-modify, 새 파일/기능 생성이면 scaffold-feature.
 
