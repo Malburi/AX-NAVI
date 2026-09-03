@@ -8,7 +8,7 @@
 <!-- 이름: ax = AI Transformation, navi = navigator. 낯선 코드베이스의 지도를 만들고 길을 안내한다는 뜻입니다. -->
 
 > ⚠️ **이름이 바뀌었습니다** — `total-ito` → **`ax-navi`** (v0.32.0부터).
-> 기존 사용자는 [설치 방법](#-설치-방법)의 이름 변경 안내를 참고하세요. 저장소 주소는 그대로입니다.
+> 저장소도 `Malburi/AX-NAVI`로 옮겼습니다. 기존 사용자는 [설치 방법](#-설치-방법)의 이름 변경 안내를 참고하세요.
 
 ---
 
@@ -67,10 +67,10 @@ Java/Spring, JavaScript/TypeScript(Vue·React), Python, Go, C#/.NET의 결정적
 Claude Code 어느 프로젝트에서나 실행합니다.
 
 ```
-/plugin marketplace add Malburi/total-ito-v2
+/plugin marketplace add Malburi/AX-NAVI
 ```
 
-> 저장소 이름(`total-ito-v2`)은 그대로이고 플러그인 이름만 `ax-navi`로 바뀌었습니다.
+> 저장소도 `Malburi/total-ito-v2`에서 `Malburi/AX-NAVI`로 옮겼습니다. 옛 주소로 등록해 둔 마켓플레이스는 갱신이 멈추므로 위 명령으로 다시 등록하세요.
 
 ### 2단계 — 플러그인 설치
 
@@ -109,7 +109,7 @@ Claude Code 어느 프로젝트에서나 실행합니다.
 터미널에서 비대화형으로 설치하려면 다음 명령도 사용할 수 있습니다.
 
 ```bash
-claude plugin marketplace add Malburi/total-ito-v2
+claude plugin marketplace add Malburi/AX-NAVI
 claude plugin install ax-navi@ax-navi --scope user
 claude plugin details ax-navi@ax-navi
 ```

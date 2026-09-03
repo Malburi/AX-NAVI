@@ -8,8 +8,8 @@
     "name": "Malburi",
     "url": "https://github.com/Malburi"
   },
-  "homepage": "https://github.com/Malburi/total-ito-v2",
-  "repository": "https://github.com/Malburi/total-ito-v2",
+  "homepage": "https://github.com/Malburi/AX-NAVI",
+  "repository": "https://github.com/Malburi/AX-NAVI",
   "license": "MIT",
   "keywords": ["harness", "agents", "skills", "ito", "si", "legacy", "migration", "code-analysis", "sql-review"]
 }

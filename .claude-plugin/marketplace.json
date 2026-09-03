@@ -15,7 +15,7 @@
       "displayName": "AX Navi",
       "source": ".",
       "description": "ITO/SI 조직을 위한 확장 메타 하네스 — 코드베이스 심층 분석 + 근거 기반 패턴 일치 코드 작성 + wiki 자동생성 + 크로스 리포 연동을 지원하는 19개 에이전트 + 17개 워크플로우 스킬",
-      "homepage": "https://github.com/Malburi/total-ito-v2",
+      "homepage": "https://github.com/Malburi/AX-NAVI",
       "keywords": ["harness", "agents", "skills", "ito", "si", "legacy", "migration", "code-analysis"]
     }
   ]
