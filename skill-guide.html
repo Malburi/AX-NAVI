@@ -1,4 +1,4 @@
-<title>total-ito 스킬 사용 가이드 &amp; 약어 정리</title>
+<title>ax-navi 스킬 사용 가이드 &amp; 약어 정리</title>
 <style>
   :root {
     --ink: #1f2a30;
@@ -134,9 +134,9 @@
 <div class="wrap">
 
 <header class="doc">
-  <p class="eyebrow">Total ITO · 개발 참조 문서</p>
+  <p class="eyebrow">AX Navi · 개발 참조 문서</p>
   <h1>스킬 사용 가이드 &amp; 약어 정리</h1>
-  <p class="meta">2026-08-27 작성 · 플러그인 <code>total-ito v0.30.4</code> · 스킬 24종 = 워크플로우 17 + 짧은 별칭 7 · 자매 문서 <code>skill-triggers.html</code>(트리거 체계 상세)</p>
+  <p class="meta">2026-08-27 작성 · 플러그인 <code>ax-navi v0.32.0</code> · 스킬 24종 = 워크플로우 17 + 짧은 별칭 7 · 자매 문서 <code>skill-triggers.html</code>(트리거 체계 상세)</p>
 </header>
 
 <nav class="toc" aria-label="목차">
@@ -177,7 +177,7 @@
     <table>
       <thead><tr><th>방식</th><th>예</th><th>보장성</th></tr></thead>
       <tbody>
-        <tr><td><strong>슬래시 (전체 이름)</strong></td><td><code>/total-ito:safe-modify</code></td><td>확정 경로 — 항상 그 스킬이 실행됨</td></tr>
+        <tr><td><strong>슬래시 (전체 이름)</strong></td><td><code>/ax-navi:safe-modify</code></td><td>확정 경로 — 항상 그 스킬이 실행됨</td></tr>
         <tr><td><strong>짧은 별칭</strong></td><td><code>/modify 세션 만료 버그</code></td><td>확정 경로 — 별칭이 즉시 해당 스킬로 위임</td></tr>
         <tr><td><strong>자연어 트리거</strong></td><td>"이거 고쳐줘", "어디서 쓰여?"</td><td>LLM 확률 매칭 — 등록 문구와 가까울수록 안정적</td></tr>
       </tbody>
@@ -185,7 +185,7 @@
   </div>
   <div class="callout warn">
     <span class="tag">보장이 필요하면 슬래시 또는 별칭</span>
-    <p>자연어 트리거는 hook으로 강제되는 것이 아니라 LLM 판단 기반 확률 매칭이다(<code>skill-triggers.html</code> 2절). 반드시 특정 스킬을 태우려면 <code>/modify</code>·<code>/total-ito:safe-modify</code>처럼 명시 호출한다.</p>
+    <p>자연어 트리거는 hook으로 강제되는 것이 아니라 LLM 판단 기반 확률 매칭이다(<code>skill-triggers.html</code> 2절). 반드시 특정 스킬을 태우려면 <code>/modify</code>·<code>/ax-navi:safe-modify</code>처럼 명시 호출한다.</p>
   </div>
 </section>
 
@@ -429,7 +429,7 @@
       <span class="note">독립 에이전트 게이트 생략 · 명시적 opt-out</span>
     </li>
     <li>
-      <span><code>/modify</code> · <code>/total-ito:&lt;스킬명&gt;</code></span>
+      <span><code>/modify</code> · <code>/ax-navi:&lt;스킬명&gt;</code></span>
       <span class="arrow">→</span>
       <span class="dest">해당 스킬</span>
       <span class="note">확정 경로 (유일한 보장 수단)</span>
@@ -489,9 +489,9 @@ SQL리뷰 ORDER_LMS_U02
 위키 허브 띄워줘                     <span class="hl">→ wiki-hub (통합 조회)</span>
 
 <span class="cm"># 슬래시 전체 이름 (항상 확정)</span>
-/total-ito:harness-init
-/total-ito:safe-modify
-/total-ito:pair-init</code></pre>
+/ax-navi:harness-init
+/ax-navi:safe-modify
+/ax-navi:pair-init</code></pre>
 </section>
 
 <footer class="doc">

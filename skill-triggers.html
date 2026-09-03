@@ -133,9 +133,9 @@
 <div class="wrap">
 
 <header class="doc">
-  <p class="eyebrow">Total ITO · 개발 참조 문서 · <strong>v2.0</strong></p>
+  <p class="eyebrow">AX Navi · 개발 참조 문서 · <strong>v2.0</strong></p>
   <h1>스킬 트리거 체계 상세</h1>
-  <p class="meta">2026-08-25 재점검 · 플러그인 v0.30.0 (에이전트 19 · 워크플로우 스킬 17) · 원본 <code>docs/skill-triggers.md</code></p>
+  <p class="meta">2026-08-25 재점검 · 플러그인 v0.32.0 (에이전트 19 · 워크플로우 스킬 17) · 원본 <code>docs/skill-triggers.md</code></p>
 </header>
 
 <nav class="toc" aria-label="목차">
@@ -188,7 +188,7 @@
   <ul>
     <li>두 메커니즘 모두 <strong>LLM 판단 기반 확률 매칭</strong>이다. 등록 문구와 정확히 일치하지 않는 표현은 스킬을 안 탈 수 있다.</li>
     <li><code>settings.json</code>의 PreToolUse/PostToolUse hooks로는 스킬 트리거를 강제할 수 없다 — <code>agents/writer.md</code>의 "금지: 의미 없는 hooks 생성" 절에 명시된 확립 원칙. hooks는 빌드 검증 결과 저장, 위험 파일 수정 차단(exit 1)에만 쓴다.</li>
-    <li><strong>보장 경로는 슬래시 직접 호출뿐</strong>: <code>/total-ito:safe-modify</code> 등.</li>
+    <li><strong>보장 경로는 슬래시 직접 호출뿐</strong>: <code>/ax-navi:safe-modify</code> 등.</li>
   </ul>
 </section>
 
@@ -283,7 +283,7 @@
       <span class="note">독립 에이전트 게이트 생략 · 명시적 opt-out</span>
     </li>
     <li>
-      <span><code>/total-ito:&lt;스킬명&gt;</code></span>
+      <span><code>/ax-navi:&lt;스킬명&gt;</code></span>
       <span class="arrow">→</span>
       <span class="dest">해당 스킬</span>
       <span class="note">확정 경로 (유일한 보장 수단)</span>
@@ -356,7 +356,7 @@
   <p><code>validator_checks.py</code>의 <code>STATIC_OR_PREEXISTING_SKILLS</code>는 더 이상 새 정적 스킬을 추가할 때 건드릴 필요가 없다 — 로컬 배포가 없으니 check3의 <code>.claude/skills/*.md</code> 글롭 스캔에 애초에 걸리지 않는다. 이 집합은 2026-08-13 이전에 이미 로컬 배포됐던 레거시 프로젝트의 잔존 사본을 위한 하위호환 용도로만 남아있다.</p>
   <div class="callout">
     <span class="tag">트리거 문구만 추가/수정할 때 (스킬 신설 아님)</span>
-    <p><code>skills/&lt;name&gt;/SKILL.md</code>(유일한 소스) description만 수정 → 라우팅 표현이 바뀌면 <code>claude_md.md.template</code> 자동 워크플로우 표도 확인 → 버전 bump → <code>node agents/lib/tests/run.js</code> + <code>claude plugin validate . --strict</code> 후 push → <code>claude plugin update total-ito@total-ito</code>.</p>
+    <p><code>skills/&lt;name&gt;/SKILL.md</code>(유일한 소스) description만 수정 → 라우팅 표현이 바뀌면 <code>claude_md.md.template</code> 자동 워크플로우 표도 확인 → 버전 bump → <code>node agents/lib/tests/run.js</code> + <code>claude plugin validate . --strict</code> 후 push → <code>claude plugin update ax-navi@ax-navi</code>.</p>
   </div>
 </section>
 
@@ -379,9 +379,9 @@ SQL리뷰 selectOrderList
 그냥 해줘, 로그 한 줄 추가
 
 <span class="cm"># 슬래시 (확정 경로, 플러그인 전역)</span>
-/total-ito:safe-modify
-/total-ito:scaffold-feature
-/total-ito:vibe</code></pre>
+/ax-navi:safe-modify
+/ax-navi:scaffold-feature
+/ax-navi:vibe</code></pre>
   <p>정적 스킬 6종은 플러그인 전역판만 쓰므로 플러그인 업데이트 즉시 모든 프로젝트에 새 트리거가 반영된다(별도 프로젝트별 재생성 불필요). CLAUDE.md 표·ito-guide.md에 새 이름을 반영하려면: 해당 프로젝트에서 <code>"스킬만 다시 생성"</code> 요청 (부분 증분 — <code>skills_builder.py</code> 재실행으로 조립본 갱신).</p>
 </section>
 

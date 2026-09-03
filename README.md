@@ -549,13 +549,12 @@ Claude는 HOLD/STOP 상황에서도 자동 수정을 하지 않습니다. **판�
 그대로 PDF가 됩니다. 외부 CDN·폰트를 쓰지 않아 폐쇄망에서도 열립니다.
 
 ```
-total-ito-guide.html      ← 세미나·보고용 슬라이드 (PPT 대체)
+ax-navi-guide.html        ← 세미나·보고용 슬라이드 (PPT 대체)
 skill-guide.html          ← 스킬 사용 가이드
 skill-triggers.html       ← 스킬 트리거 체계 상세
 ```
 
-> 슬라이드 본문과 파일명은 아직 이전 이름(Total ITO)으로 되어 있습니다. 다음 개정 때 갱신 예정입니다.
-> `total-ito-guide_v1.1.html`·`_v1.2.html`은 이전 판 보관본입니다.
+> `total-ito-guide_v1.1.html`·`_v1.2.html`은 이전 판 보관본이라 당시 표기를 그대로 둡니다.
 
 ---
 
