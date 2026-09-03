@@ -84,7 +84,7 @@ safe-modify Phase 0과 동일한 키워드 표 적용 (`production`/`hotfix`/`le
 
 ```
 Agent(
-  subagent_type="total-ito:api-bridge",
+  subagent_type="ax-navi:api-bridge",
   description="[target.label] 영향 확인 — [변경 대상]",
   prompt="mode: check-impact.
   변경 엔드포인트/대상: [Phase 1에서 식별된 method+path 또는 DTO/함수].
@@ -185,7 +185,7 @@ Agent(
 시작 측:
 ```
 Agent(
-  subagent_type="total-ito:change-safety",
+  subagent_type="ax-navi:change-safety",
   description="변경 안전성 평가 (시작 측)",
   prompt="<변경 파일: [Phase 4 목록]. mode: [Phase 0 감지 모드]. impact 리포트: _workspace/reports/impact_<slug>.md. 패턴 판정: _workspace/reports/pattern_conformance_<slug>.md. 실행 검증: [명령/exit code/핵심 출력]. 출력: _workspace/reports/safety_<slug>.md>",
   model="sonnet"
@@ -195,7 +195,7 @@ Agent(
 `modify_targets`마다(Phase 5 실행된 대상만), 시작 측 호출과 같은 메시지에서 전부 병렬(서로 독립적인 평가 대상):
 ```
 Agent(
-  subagent_type="total-ito:change-safety",
+  subagent_type="ax-navi:change-safety",
   description="[target.label] 변경 안전성 평가",
   prompt="<프로젝트 루트: [target.root]. 변경 파일: [target.root]/_workspace/reports/cross_modify_partner.md 목록. mode: [Phase 0 감지 모드]. 패턴 판정: [target.root]/_workspace/reports/pattern_conformance_<slug>.md. 실행 검증: [명령/exit code/핵심 출력]. 출력: [target.root]/_workspace/reports/safety_<slug>.md>",
   model="sonnet"
@@ -208,7 +208,7 @@ Agent(
 
 ```
 Agent(
-  subagent_type="total-ito:api-bridge",
+  subagent_type="ax-navi:api-bridge",
   description="[target.label] 크로스 리포 드리프트 재검증",
   prompt="mode: validate.
   프론트엔드 루트: [target.root].

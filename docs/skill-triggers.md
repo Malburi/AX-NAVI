@@ -32,7 +32,7 @@ harness가 설치된 대상 프로젝트에서 개선/개발 요청은 배포된
 
 - 두 메커니즘 모두 **LLM 판단 기반 확률 매칭**이다. 등록 문구와 정확히 일치하지 않는 표현은 스킬을 안 탈 수 있다.
 - `settings.json`의 PreToolUse/PostToolUse hooks로는 스킬 트리거를 강제할 수 없다 — `agents/writer.md`의 "금지: 의미 없는 hooks 생성" 절에 명시된 확립 원칙. hooks는 빌드 검증 결과 저장, 위험 파일 수정 차단(exit 1)에만 쓴다.
-- **보장 경로는 슬래시 직접 호출뿐**: `/total-ito:safe-modify` 등.
+- **보장 경로는 슬래시 직접 호출뿐**: `/ax-navi:safe-modify` 등.
 
 ---
 
@@ -103,7 +103,7 @@ writer가 프로젝트별로 직접 작성하는 스킬(trace / find-logic / sca
  ├─ "개발해줘/구현해줘/새 기능"          → scaffold-feature  (컨벤션 기반 생성, 기본값)
  ├─ "수정해줘/고쳐줘/개선해줘"           → safe-modify       (게이트 포함, 기본값)
  ├─ "알아서 해줘/그냥 해줘/바이브로"      → vibe              (독립 에이전트 게이트 생략, 명시적 opt-out)
- └─ "/total-ito:<스킬명>"               → 해당 스킬          (확정 경로)
+ └─ "/ax-navi:<스킬명>"               → 해당 스킬          (확정 경로)
 ```
 
 - **기본값 = 게이트 경로.** 범용 요청은 harness의 인덱스·패턴·안전성 평가를 태운다.
@@ -162,7 +162,7 @@ writer가 프로젝트별로 직접 작성하는 스킬(trace / find-logic / sca
 ### 트리거 문구만 추가/수정할 때 (스킬 신설 아님)
 - `skills/<name>/SKILL.md`(유일한 소스) description만 수정.
 - 라우팅 표현이 바뀌면 `claude_md.md.template` 자동 워크플로우 표도 확인.
-- 버전 bump + `node agents/lib/tests/run.js` + `claude plugin validate . --strict` 후 push + `claude plugin update total-ito@total-ito`.
+- 버전 bump + `node agents/lib/tests/run.js` + `claude plugin validate . --strict` 후 push + `claude plugin update ax-navi@ax-navi`.
 
 ---
 
@@ -185,9 +185,9 @@ SQL리뷰 selectOrderList
 그냥 해줘, 로그 한 줄 추가
 
 # 슬래시 (확정 경로, 플러그인 전역)
-/total-ito:safe-modify
-/total-ito:scaffold-feature
-/total-ito:vibe
+/ax-navi:safe-modify
+/ax-navi:scaffold-feature
+/ax-navi:vibe
 ```
 
 정적 스킬 6종은 플러그인 전역판만 쓰므로 플러그인 업데이트 즉시 모든 프로젝트에 새 트리거가 반영된다(별도 프로젝트별 재생성 불필요). CLAUDE.md 표·ito-guide.md에 새 이름을 반영하려면: 해당 프로젝트에서 `"스킬만 다시 생성"` 요청 (부분 증분 — `skills_builder.py` 재실행으로 조립본 갱신).

@@ -254,7 +254,7 @@ partner_api_contract: [절대경로 2]/_workspace/index/api_contract.json
 
 ```
 Agent(
-  subagent_type="total-ito:api-bridge",
+  subagent_type="ax-navi:api-bridge",
   description="백엔드 API 계약 추출",
   prompt="mode: extract.
   프로젝트 루트: [백엔드 절대경로].
@@ -277,7 +277,7 @@ Agent(
 
 ```
 Agent(
-  subagent_type="total-ito:api-bridge",
+  subagent_type="ax-navi:api-bridge",
   description="프론트엔드 API 드리프트 검증",
   prompt="mode: validate.
   프론트엔드 루트: [프론트엔드 절대경로].

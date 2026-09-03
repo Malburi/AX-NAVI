@@ -1,4 +1,4 @@
-# Total ITO 사용자 설명서
+# AX Navi 사용자 설명서
 
 > SM/SI 현장 실무자를 위한 단계별 가이드
 
@@ -24,7 +24,7 @@
 "하네스 초기화해줘"
 ```
 
-하나만 기억하면 됩니다. 나머지는 Total ITO가 알아서 합니다.
+하나만 기억하면 됩니다. 나머지는 AX Navi가 알아서 합니다.
 
 ### 지금 당장 뭔가 해야 한다면?
 
@@ -46,7 +46,7 @@
 
 ```
 /plugin marketplace add Malburi/total-ito-v2
-/plugin install total-ito@total-ito
+/plugin install ax-navi@ax-navi
 ```
 
 설치 확인:
@@ -55,7 +55,7 @@
 /plugin list
 ```
 
-`total-ito@total-ito — enabled`가 보이면 완료.
+`ax-navi@ax-navi — enabled`가 보이면 완료.
 
 ### 2-2. 구성 요소 로딩 확인
 
@@ -65,24 +65,24 @@
 /reload-plugins
 ```
 
-설치된 17개 스킬과 18개 에이전트 확인:
+설치된 24개 스킬(워크플로우 17 + 단축 별칭 7)과 19개 에이전트 확인:
 
 ```
-/plugin details total-ito@total-ito
+/plugin details ax-navi@ax-navi
 ```
 
 첫 실행 확인:
 
 ```
-/total-ito:harness-init
+/ax-navi:harness-init
 ```
 
 터미널에서 비대화형으로 설치할 수도 있다.
 
 ```bash
 claude plugin marketplace add Malburi/total-ito-v2
-claude plugin install total-ito@total-ito --scope user
-claude plugin details total-ito@total-ito
+claude plugin install ax-navi@ax-navi --scope user
+claude plugin details ax-navi@ax-navi
 ```
 
 ---
@@ -507,7 +507,7 @@ SQL:
 플러그인 자체 제거:
 
 ```
-/plugin uninstall total-ito@total-ito
+/plugin uninstall ax-navi@ax-navi
 ```
 
 ---
@@ -579,7 +579,7 @@ flowchart LR
 
 **변경 전후 비교:**
 
-| | 기존 방식 | Total ITO |
+| | 기존 방식 | AX Navi |
 |-|---------|------------|
 | 영향 범위 파악 | 코드 전체 수동 grep | analyze-impact 자동 분석 |
 | 변경 안전성 | 경험에 의존 | GO/HOLD/STOP 판정 |
@@ -725,4 +725,4 @@ harness-init이 생성하는 프로젝트 전용 가이드. Claude가 매 대화
 
 ---
 
-*Total ITO v0.18.1 · [GitHub](https://github.com/Malburi/total-ito-v2)*
+*AX Navi v0.32.0 · [GitHub](https://github.com/Malburi/total-ito-v2)*

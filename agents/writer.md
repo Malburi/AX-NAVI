@@ -60,7 +60,7 @@ CLAUDE.md 표·ito-guide.md 반영 여부를 결정하므로 형식 준수 필�
 
 ### C. 작업용 에이전트
 
-writer는 **에이전트 정의를 만들지 않는다.** harness-fin이 제공하는 공통 에이전트(`impact-analyzer`, `change-safety`, `pattern-extractor`, `migration-planner`, `test-generator`, `sql-reviewer`, `legacy-decoder`, `doc-syncer`)는 사용자가 harness-fin을 그대로 복사하는 것으로 사용한다.
+writer는 **에이전트 정의를 만들지 않는다.** AX Navi가 제공하는 공통 에이전트(`impact-analyzer`, `change-safety`, `pattern-extractor`, `migration-planner`, `test-generator`, `sql-reviewer`, `legacy-decoder`, `doc-syncer`)는 사용자가 AX Navi를 그대로 복사하는 것으로 사용한다.
 
 `.claude/agents/domain-expert.md` = `_workspace/01_analyzer_report.md`를 그대로 주입한 파일이라 writer가 같은 내용을 다시 타이핑할 이유가 없다. `agents/lib/skills_builder.py`가 harness-init Phase 2-2.3에서 analyzer_report를 그대로 복사해 생성한다 (LLM 미개입).
 

@@ -45,7 +45,7 @@ harness-init 파이프라인에서 **LLM 판단이 필요 없는 스크립트 �
 | `verify` | `agents/lib/pipeline-runner/block-verify.md` | Phase 2-3 후단 / 2-4 전단 (2-3.5) |
 | `wiki` | `agents/lib/pipeline-runner/block-wiki.md` | Phase 3.7 (3.6 메뉴에서 선택된 경우만) |
 
-**경로 규칙은 스크립트와 같다.** 위 상대경로는 플러그인 설치 루트 기준이므로 절대경로로 바꿔 읽는다 — PowerShell은 `$env:CLAUDE_PLUGIN_ROOT/agents/lib/pipeline-runner/block-[블록명].md`, bash는 `$CLAUDE_PLUGIN_ROOT/agents/lib/pipeline-runner/block-[블록명].md`. 환경변수가 비어 있으면 프롬프트로 받은 `plugin_root`(예: `~/.claude/plugins/cache/total-ito/...`)의 절대경로로 대체한다. cwd 기준 상대경로는 개발 저장소에서만 동작하므로 금지.
+**경로 규칙은 스크립트와 같다.** 위 상대경로는 플러그인 설치 루트 기준이므로 절대경로로 바꿔 읽는다 — PowerShell은 `$env:CLAUDE_PLUGIN_ROOT/agents/lib/pipeline-runner/block-[블록명].md`, bash는 `$CLAUDE_PLUGIN_ROOT/agents/lib/pipeline-runner/block-[블록명].md`. 환경변수가 비어 있으면 프롬프트로 받은 `plugin_root`(예: `~/.claude/plugins/cache/ax-navi/...`)의 절대경로로 대체한다. cwd 기준 상대경로는 개발 저장소에서만 동작하므로 금지.
 
 읽은 파일의 Step 순서·폴백 사다리·재시도 규칙·반환 형식을 그대로 따른다. `block:` 값이 위 넷 중 어느 것도 아니면 스크립트를 실행하지 않고 `RESULT: FAIL`과 `WARN: 알 수 없는 block 값 [값]`만 반환한다.
 

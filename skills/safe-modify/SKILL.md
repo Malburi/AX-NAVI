@@ -146,7 +146,7 @@ CRITICAL 등급이면 옵션 2를 권장 + 추가 확인.
 
 ```
 Agent(
-  subagent_type="total-ito:pattern-conformance",
+  subagent_type="ax-navi:pattern-conformance",
   description="변경 코드 패턴 적합성 검증",
   prompt="<변경 파일: [목록]. 선택 결과: _workspace/reports/pattern_selection.json. 출력: _workspace/reports/pattern_conformance_<slug>.md>",
   model="sonnet"
@@ -177,7 +177,7 @@ node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/verify-target.mjs" run --root "[프로�
 
 ```
 Agent(
-  subagent_type="total-ito:change-safety",
+  subagent_type="ax-navi:change-safety",
   description="변경 안전성 평가",
   prompt="<변경 파일: [목록]. mode: [감지된 모드]. impact 리포트: _workspace/reports/impact_<slug>.md. 패턴 적합성: _workspace/reports/pattern_conformance_<slug>.md. 검증 결과: verify-target run의 commands(cmd·exit·fail_lines)와 overall. 출력: _workspace/reports/safety_<slug>.md>",
   model="sonnet"

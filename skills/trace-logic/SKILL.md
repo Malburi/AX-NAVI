@@ -45,7 +45,7 @@ node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/build-index.mjs" --root "[프로젝트 
 
 ```
 Agent(
-  subagent_type="total-ito:logic-tracer",
+  subagent_type="ax-navi:logic-tracer",
   description="로직 흐름 추적",
   prompt="<추적 대상: [추출된 대상]. 프로젝트 루트: [절대경로]. 출력: _workspace/reports/trace_<slug>.md>",
   model="sonnet"

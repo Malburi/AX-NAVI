@@ -7,7 +7,7 @@ description: 프로젝트를 심층 분석해 맞춤형 하네스(CLAUDE.md, 5+ 
 
 프로젝트 코드베이스를 심층 분석해 *수정·개발·마이그레이션 작업까지 지원하는* 맞춤형 harness를 자동 생성한다.
 
-기존 harness-new가 만들던 5종 + harness-fin이 추가하는 5종 + 인덱스 + 패턴까지 한 번에 생성.
+기존 harness-new가 만들던 5종 + AX Navi가 추가하는 5종 + 인덱스 + 패턴까지 한 번에 생성.
 
 **실행 모드:** 에이전트 팀 (TaskCreate 의존성 + `_workspace/` 파일 기반 산출물 전달)
 
@@ -106,7 +106,7 @@ description: 프로젝트를 심층 분석해 맞춤형 하네스(CLAUDE.md, 5+ 
 |----------|------|
 | `CLAUDE.md` 존재 + "## 변경 이력" 섹션 | 기존 하네스 있음 |
 | `.claude/skills/trace.md` 존재 | 기존 스킬 있음 |
-| `.claude/ito-guide.md` 존재 | harness-fin (Enhanced) 버전 |
+| `.claude/ito-guide.md` 존재 | AX Navi (Enhanced) 버전 |
 | `.claude/agents/domain-expert.md` | 도메인 에이전트 있음 |
 | `_workspace/` 존재 | 이전 산출물 있음 |
 | `_workspace/index/*.json` 존재 | 인덱스 있음 (incremental 가능) |
@@ -227,7 +227,7 @@ QA(`T-Q`)와 wiki(`T-WIKI`)는 Tier와 무관하게 이 초기 작업 그래프�
 
 `TaskCreate`가 있으면 위 작업 ID와 한글 설명을 **함께 포함한 제목 그대로** 작업을 생성한다(예: `T-A · analyzer · 프로젝트 구조·의존성·레거시 로직 분석`).
 
-**모든 `Agent()` 호출은 `subagent_type="total-ito:[에이전트 이름]"`으로 발행한다.** 2026-08-16 이전에는 분석·생성·판정 역할을 전부 `general-purpose`로 불렀는데, 그러면 서브에이전트가 자기 지침 파일을 **직접 `Read`로 읽어야** 했다 — `agents/analyzer.md` 하나가 22K 토큰이고, 파일 위치를 찾느라 Glob·Grep이 덧붙는 경우도 많았다. 네임스페이스로 부르면 같은 지침이 서브에이전트의 시스템 프롬프트로 자동 로드되므로 그 읽기가 통째로 사라지고, 프롬프트에는 인자(루트 경로·mode·tier·입출력 파일)만 남긴다. 초기화 1회 기준 이 변경만으로 지침 재적재가 약 70K 토큰 줄어든다.
+**모든 `Agent()` 호출은 `subagent_type="ax-navi:[에이전트 이름]"`으로 발행한다.** 2026-08-16 이전에는 분석·생성·판정 역할을 전부 `general-purpose`로 불렀는데, 그러면 서브에이전트가 자기 지침 파일을 **직접 `Read`로 읽어야** 했다 — `agents/analyzer.md` 하나가 22K 토큰이고, 파일 위치를 찾느라 Glob·Grep이 덧붙는 경우도 많았다. 네임스페이스로 부르면 같은 지침이 서브에이전트의 시스템 프롬프트로 자동 로드되므로 그 읽기가 통째로 사라지고, 프롬프트에는 인자(루트 경로·mode·tier·입출력 파일)만 남긴다. 초기화 1회 기준 이 변경만으로 지침 재적재가 약 70K 토큰 줄어든다.
 
 `description` 필드에는 계속 `[task-id] · [실제 에이전트 이름] · 한글 목적`을 그대로 넣는다 — 어떤 단계가 실행 중인지 사용자에게 드러내기 위한 것이라 네임스페이스 호출이어도 규칙은 같다.
 
@@ -259,7 +259,7 @@ QA(`T-Q`)와 wiki(`T-WIKI`)는 Tier와 무관하게 이 초기 작업 그래프�
 | `build-index.mjs --apply-ai-patch` | 2-1.5 | 1회 호출, analyzer와 writer 사이에 끼어 있어 다른 블록과 묶이지 않음 |
 | `ai-budget.mjs claim` | 2-1 / 2-2 / 2-3 / Phase 4 | 결과(exit 0/1)로 그 다음 `Agent()` 호출 여부를 결정하는 제어 게이트라 위임 불가 |
 
-> **스크립트 경로 규칙 (위 잔여 호출과 `pipeline-runner`에 넘기는 `plugin_root` 공통)**: 스크립트는 대상 프로젝트가 아니라 *플러그인 설치 루트*에 있다. PowerShell은 `$env:CLAUDE_PLUGIN_ROOT`, bash는 `$CLAUDE_PLUGIN_ROOT`로 참조한다. 환경변수가 비어 있으면 이 SKILL.md가 위치한 플러그인 디렉터리(예: `~/.claude/plugins/cache/total-ito/...`)의 절대경로로 대체한다. cwd 기준 상대경로 `agents/lib/...`는 개발 저장소에서만 동작하므로 금지.
+> **스크립트 경로 규칙 (위 잔여 호출과 `pipeline-runner`에 넘기는 `plugin_root` 공통)**: 스크립트는 대상 프로젝트가 아니라 *플러그인 설치 루트*에 있다. PowerShell은 `$env:CLAUDE_PLUGIN_ROOT`, bash는 `$CLAUDE_PLUGIN_ROOT`로 참조한다. 환경변수가 비어 있으면 이 SKILL.md가 위치한 플러그인 디렉터리(예: `~/.claude/plugins/cache/ax-navi/...`)의 절대경로로 대체한다. cwd 기준 상대경로 `agents/lib/...`는 개발 저장소에서만 동작하므로 금지.
 > **파이썬 인터프리터 규칙**: `.py` 스크립트를 부를 때 `python` 또는 `python3` **어느 쪽도 하드코딩하지 않는다.** 윈도우(공식 설치판·Store판)에는 `python`만 있고, 다수 리눅스 배포판·Homebrew에는 `python3`만 있다 — ITO 현장은 윈도우가 기본이고 CI는 리눅스라 양쪽을 다 밟는다. 먼저 `python3 --version`을 시도해 성공하면 `python3`, 실패하면 `python`을 쓴다(둘 다 실패하면 "파이썬 없음"을 WARN으로 보고하고 그 블록만 건너뛴다 — 조용히 넘어가지 않는다). 아래 예시는 `python`으로 적혀 있으나 실제 호출 시 이 규칙으로 결정한 이름을 쓴다.
 
 ### 분리 저장소 레인 실행 (paired-roots/hub-roots만 해당)
@@ -274,7 +274,7 @@ analyzer 호출 전에 실행. `_workspace/01_analyzer_report.md`가 이미 있�
 
 ```
 Agent(
-  subagent_type="total-ito:pipeline-runner",
+  subagent_type="ax-navi:pipeline-runner",
   description="T-I · pipeline-runner · 소스 구조와 호출 관계 인덱싱",
   prompt="<pipeline-runner 에이전트 지침의 block: index를 실행한다.
   block: index. root: [절대경로]. tier: [Standard/Full]. mode: [init/incremental].
@@ -348,7 +348,7 @@ node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/ai-budget.mjs" claim --root "[절대경
 
 ```
 Agent(
-  subagent_type="total-ito:analyzer",
+  subagent_type="ax-navi:analyzer",
   description="T-A · analyzer · 프로젝트 구조·의존성·레거시 로직 분석",
   prompt="<프로젝트 루트: [절대경로]. mode: init. tier: [Standard/Full].
   init_layout/paths: _workspace/00_init_scope.md 참조 (selected-paths면 해당 상대경로만 분석).
@@ -386,7 +386,7 @@ AI 예산이 초기화됐으면 claim 먼저: `node "$env:CLAUDE_PLUGIN_ROOT/age
 
 ```
 Agent(
-  subagent_type="total-ito:writer",
+  subagent_type="ax-navi:writer",
   description="T-W · writer · 하네스 파일과 프로젝트 가이드 생성",
   prompt="<프로젝트 루트: [절대경로]. tier: [Standard/Full]. 입력: _workspace/01_analyzer_report.md + _workspace/index/*.json (필요 시). 출력: 하네스 파일들(trace/scaffolder/find-logic, cross-repo-* 있는 경우) + _workspace/claude_md_fields.json + _workspace/writer_decisions.json>",
   model="sonnet"
@@ -403,7 +403,7 @@ writer 완료 후 실행. LLM 호출 없이 전부 결정론적 파일 조립·�
 
 ```
 Agent(
-  subagent_type="total-ito:pipeline-runner",
+  subagent_type="ax-navi:pipeline-runner",
   description="T-W-BUILD · pipeline-runner · 하네스 파일 조립",
   prompt="<pipeline-runner 에이전트 지침의 block: assemble을 실행한다.
   block: assemble. root: [절대경로]. tier: [Standard/Full].
@@ -429,7 +429,7 @@ AI 예산이 초기화됐으면 claim 먼저: `node "$env:CLAUDE_PLUGIN_ROOT/age
 
 ```
 Agent(
-  subagent_type="total-ito:pattern-extractor",
+  subagent_type="ax-navi:pattern-extractor",
   description="T-P · pattern-extractor · 레이어별 컨벤션 패턴 추출",
   prompt="<프로젝트 루트: [절대경로]. 입력: .claude/patterns/*.md 스켈레톤 + _workspace/01_analyzer_report.md + _workspace/index/*.json. 출력: 패턴 파일 본문 + .claude/patterns/pattern_profile.json + _workspace/05_patterns_extracted.md>",
   model="sonnet"
@@ -444,7 +444,7 @@ pattern-extractor 완료 직후, validator Agent 호출 전에 실행한다. `pa
 
 ```
 Agent(
-  subagent_type="total-ito:pipeline-runner",
+  subagent_type="ax-navi:pipeline-runner",
   description="T-V-CHECK · pipeline-runner · 패턴 프로필과 인덱스 기계 검증",
   prompt="<pipeline-runner 에이전트 지침의 block: verify를 실행한다.
   block: verify. root: [절대경로]. tier: [Standard/Full].
@@ -470,7 +470,7 @@ Agent(
 
 ```
 Agent(
-  subagent_type="total-ito:validator",
+  subagent_type="ax-navi:validator",
   description="T-V · MJS validator · 하네스 구조와 근거 검증",
   prompt="<프로젝트 루트: [절대경로]. tier: [Standard/Full]. 입력: _workspace/01_analyzer_report.md, _workspace/02_writer_files.md, _workspace/validator_mechanical.json(있으면), _workspace/validator_schema.json(있으면), _workspace/pattern_profile_validation.json(있으면), (있으면) _workspace/index/. 출력: _workspace/03_validator_report.md>",
   model="sonnet"
@@ -485,7 +485,7 @@ validator 완료 후 실행:
 
 ```
 Agent(
-  subagent_type="total-ito:harness-evaluator",
+  subagent_type="ax-navi:harness-evaluator",
   description="T-E · harness-evaluator · harness 품질 평가",
   prompt="<프로젝트 루트: [절대경로]. tier: [Standard/Full].
   입력: _workspace/01_analyzer_report.md, _workspace/03_validator_report.md,
@@ -503,7 +503,7 @@ Agent(
 `_workspace/03_validator_report.md`, `_workspace/05_patterns_extracted.md`(있으면), `_workspace/04_qa_report.md`(있으면, 선택 작업에서 이미 실행한 경우만)를 읽어 사용자에게 다음 형식으로 보고:
 
 ```
-하네스 초기화 완료 (harness-fin v1) [Tier: Standard/Full]
+하네스 초기화 완료 (AX Navi v1) [Tier: Standard/Full]
 
 생성된 파일:
 
@@ -564,7 +564,7 @@ Eval 품질 점수 (harness-evaluator):
      걸려 있으면 .gitignore에 예외를 추가:  !_workspace/index/_ai_patch.json
 
   2) git add CLAUDE.md .claude/ _workspace/index/_ai_patch.json
-     git commit -m "docs: add project harness (harness-fin v1)"
+     git commit -m "docs: add project harness (AX Navi v1)"
 
   팀원은 pull 후 아무것도 하지 않아도 됩니다 — 필요하면 인덱싱 한 번(수십 초, LLM 사용 없음)이
   자동으로 돌고, 그 뒤 바로 analyze-impact·trace-logic 등을 쓸 수 있습니다.
@@ -638,7 +638,7 @@ Phase 3.6에서 고른 항목만 실행한다. 둘 다 골랐으면 두 `Agent()
 
 ```
 Agent(
-  subagent_type="total-ito:pipeline-runner",
+  subagent_type="ax-navi:pipeline-runner",
   description="T-WIKI · pipeline-runner · wiki 페이지 생성",
   prompt="<pipeline-runner 에이전트 지침의 block: wiki를 실행한다.
   block: wiki. root: [절대경로]. plugin_root: [$env:CLAUDE_PLUGIN_ROOT 값].
@@ -661,7 +661,7 @@ Boundary 6 기계 체크(`qa_boundary6.py`)는 오케스트레이터가 미리 �
 
 ```
 Agent(
-  subagent_type="total-ito:qa",
+  subagent_type="ax-navi:qa",
   description="T-Q · qa · 경계면 교차 비교 검증",
   prompt="<프로젝트 루트: [절대경로]. plugin_root: [$env:CLAUDE_PLUGIN_ROOT 값]. Boundary 6은 qa_boundary6.py를 직접 실행해 처리한다. 입력: _workspace/01~03 + _workspace/index/. 출력: _workspace/04_qa_report.md>",
   model="sonnet"
@@ -714,7 +714,7 @@ harness-evaluator는 harness 파일이 인덱스를 참조하는지만 보고 �
 
 ```
 Agent(
-  subagent_type="total-ito:analyzer",
+  subagent_type="ax-navi:analyzer",
   description="T-A-PATCH · analyzer · 인덱스 무결성 지적 항목 보강",
   prompt="<mode: targeted. 프로젝트 루트: [절대경로].
   고칠 항목(이것만 본다): [해당 warn·FAIL 메시지 원문].
@@ -754,7 +754,7 @@ node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/ai-budget.mjs" claim --root "[절대경
 ```
 for each fix_target in eval_report.fix_targets (우선순위 순):
   Agent(
-    subagent_type="total-ito:[fix_target.agent]",
+    subagent_type="ax-navi:[fix_target.agent]",
     description="[fix_target.agent에 대응하는 task-id]-RETRY · [fix_target.agent] · 개선 재실행",
     prompt="<재실행.
     (analyzer이고 PARTIAL 구간이면) mode: targeted — Phase A/B 재분석과 01_analyzer_report.md 재작성 금지.
@@ -784,7 +784,7 @@ writer 재실행 후에는 2-2.3의 `pipeline-runner` `block: assemble`을 다�
 
 ```
 Agent(
-  subagent_type="total-ito:harness-evaluator",
+  subagent_type="ax-navi:harness-evaluator",
   description="T-E-RECHECK · harness-evaluator · harness 품질 재평가 (2차)",
   prompt="<평가 회차: 2.
   프로젝트 루트: [절대경로]. tier: [Standard/Full].

@@ -383,7 +383,7 @@ def deploy_claude_md(root, decisions=None):
     if prior_rows:
         changelog_rows = prior_rows + "\n" + f"| {generation_date} | 하네스 재초기화 (analyzer 재분석 반영) | 전체 | harness-init 재실행 |\n"
     else:
-        changelog_rows = f"| {generation_date} | 초기 구성 (analyzer 출력 기반) | 전체 | harness-fin v1 적용 |\n"
+        changelog_rows = f"| {generation_date} | 초기 구성 (analyzer 출력 기반) | 전체 | AX Navi v1 적용 |\n"
 
     content = (
         template

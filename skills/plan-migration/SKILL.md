@@ -51,7 +51,7 @@ ITO/SI의 큰 단위 작업인 만큼 *대화형*으로 진행한다.
 
 ```
 Agent(
-  subagent_type="total-ito:migration-planner",
+  subagent_type="ax-navi:migration-planner",
   description="마이그레이션 계획 수립",
   prompt="<컨텍스트: _workspace/migration/00_context.md. 소스: [...]. 타겟: [...]. 범위: [...]. 출력: _workspace/migration/00~05_*.md + checkpoints/>",
   model="opus"

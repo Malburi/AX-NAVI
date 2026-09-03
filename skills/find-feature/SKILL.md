@@ -45,7 +45,7 @@ node "$env:CLAUDE_PLUGIN_ROOT/agents/lib/build-index.mjs" --root "[프로젝트 
 
 ```
 Agent(
-  subagent_type="total-ito:feature-finder",
+  subagent_type="ax-navi:feature-finder",
   description="기능 위치 탐색",
   prompt="<키워드: [추출된 키워드]. 범위: [레이어/패키지 제한]. 프로젝트 루트: [절대경로]. 출력: _workspace/reports/found_<slug>.md>",
   model="sonnet"

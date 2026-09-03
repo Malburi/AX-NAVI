@@ -27,7 +27,7 @@ export async function test(register, assert) {
       "agents", "hooks", "mcpServers", "outputStyles", "lspServers", "experimental", "dependencies",
     ]);
 
-    assert.equal(plugin.name, "total-ito");
+    assert.equal(plugin.name, "ax-navi");
     assert.ok(/^\d+\.\d+\.\d+$/.test(plugin.version), "플러그인 버전은 semver여야 함");
     assert.ok(!Object.hasOwn(plugin, "skills"), "기본 skills 경로는 자동 탐색하므로 중복 선언하지 않음");
     assert.ok(!Object.hasOwn(plugin, "agents"), "기본 agents 경로는 자동 탐색하므로 중복 선언하지 않음");
@@ -40,9 +40,10 @@ export async function test(register, assert) {
     const marketplace = json(".claude-plugin/marketplace.json");
     assert.ok(/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(marketplace.name), "마켓플레이스 이름은 kebab-case여야 함");
     assert.equal(marketplace.plugins.length, 1);
-    assert.equal(marketplace.name, "total-ito");
-    assert.equal(marketplace.renames["ax-std-harness"], "total-ito");
-    assert.equal(marketplace.plugins[0].name, "total-ito");
+    assert.equal(marketplace.name, "ax-navi");
+    assert.equal(marketplace.renames["ax-std-harness"], "ax-navi");
+    assert.equal(marketplace.renames["total-ito"], "ax-navi", "직전 이름 total-ito에서 자동 승계돼야 함");
+    assert.equal(marketplace.plugins[0].name, "ax-navi");
     assert.equal(marketplace.plugins[0].source, ".");
     assert.ok(existsSync(join(root, marketplace.plugins[0].source, ".claude-plugin", "plugin.json")));
   });

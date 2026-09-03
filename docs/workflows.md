@@ -27,8 +27,8 @@
 
 ```
 1. cd /path/to/project
-2. cp -r [harness-fin]/.claude ./
-3. cp [harness-fin]/CLAUDE.md ./
+2. cp -r [ax-navi]/.claude ./
+3. cp [ax-navi]/CLAUDE.md ./
 4. claude
 5. "하네스 초기화해줘"
    → harness-init 실행 (15~30분, 프로젝트 크기에 따라)

@@ -140,7 +140,7 @@ SQL ID는 분석 리포트의 명명 규칙 (`MODULE_FEATURE_S01` 등) 따름.
 
 ```
 Agent(
-  subagent_type="total-ito:test-generator",
+  subagent_type="ax-navi:test-generator",
   description="신규 기능 테스트 생성",
   prompt="<대상: [생성된 파일 목록]. 컨벤션: .claude/patterns/test_pattern.md.>",
   model="sonnet"
@@ -167,7 +167,7 @@ Agent(
 
 ```
 Agent(
-  subagent_type="total-ito:pattern-conformance",
+  subagent_type="ax-navi:pattern-conformance",
   description="신규 기능 패턴 적합성 검증",
   prompt="<변경 파일: [생성·수정 파일 목록]. 선택 결과: _workspace/reports/pattern_selection.json. 출력: _workspace/reports/pattern_conformance_<slug>.md>",
   model="sonnet"

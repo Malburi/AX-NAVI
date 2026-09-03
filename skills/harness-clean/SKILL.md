@@ -5,7 +5,7 @@ description: 현재 프로젝트에 설치된 harness 파일 전체를 제거한
 
 # Harness Clean — 하네스 전체 제거
 
-현재 프로젝트에 Total ITO가 생성한 파일들을 안전하게 제거한다.
+현재 프로젝트에 AX Navi가 생성한 파일들을 안전하게 제거한다.
 
 **원칙: 삭제 전 반드시 목록을 보여주고 사용자 확인을 받는다. 자동 삭제 없음.**
 
@@ -25,7 +25,7 @@ harness 흔적이 없으면: "이 디렉토리에 harness가 설치되어 있지
 다음 경로를 Glob으로 확인해 존재하는 항목만 목록화:
 
 ```
-삭제 대상 (Total ITO 생성 파일):
+삭제 대상 (AX Navi 생성 파일):
 
 [프로젝트 harness 파일]
 - CLAUDE.md                          ← harness가 생성한 경우만
@@ -50,7 +50,7 @@ harness 흔적이 없으면: "이 디렉토리에 harness가 설치되어 있지
 > 레거시 프로젝트에 잔존 사본이 있을 수 있으므로, Step 2의 Glob 탐지에서 `.claude/skills/*.md` 중 위
 > 목록에 없는 파일이 발견되면 "레거시 잔존 사본으로 추정, 함께 삭제할지" 별도 확인 항목으로 제시한다.
 
-**CLAUDE.md 주의:** "## 변경 이력" 섹션에 harness-fin 항목이 있으면 harness가 생성한 것으로 판단. 없으면 사용자 작성 파일일 수 있으므로 CLAUDE.md는 별도 확인 항목으로 분리.
+**CLAUDE.md 주의:** "## 변경 이력" 섹션에 `AX Navi v1`(또는 이전 이름 `harness-fin v1`) 항목이 있으면 harness가 생성한 것으로 판단. 없으면 사용자 작성 파일일 수 있으므로 CLAUDE.md는 별도 확인 항목으로 분리.
 
 
 ---
@@ -120,8 +120,8 @@ harness 제거 완료
   - CLAUDE.md (삭제 제외 선택 시)
 
 플러그인 제거 (선택):
-  Total ITO 플러그인 자체를 제거하려면 Claude Code에서 아래 명령을 실행하세요:
-  /plugin uninstall total-ito@total-ito
+  AX Navi 플러그인 자체를 제거하려면 Claude Code에서 아래 명령을 실행하세요:
+  /plugin uninstall ax-navi@ax-navi
 ```
 
 ---

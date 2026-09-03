@@ -76,7 +76,7 @@ config / template / requirements 파일은 헤더 생략.
 
 ---
 
-**harness-fin** — ITO/SI 조직을 위한 확장 메타 하네스 템플릿.
+**AX Navi** (`ax-navi`) — ITO/SI 조직을 위한 확장 메타 하네스 템플릿.
 
 ## 이 저장소의 역할
 
@@ -123,6 +123,7 @@ config / template / requirements 파일은 헤더 생략.
 | `skills/cross-repo-modify/SKILL.md` | 페어 연동된 양쪽 저장소에 기존 기능 개선/수정 동시 반영 (safe-modify + 파트너 영향 확인·반영 게이트) |
 | `skills/publish-wiki/SKILL.md` | 폴더 wiki를 별도 프로젝트 wiki-hub(중앙 DB, 시스템·컴포넌트·버전관리)에 발행 — `wiki-hub-publish` 콘솔 명령 호출 |
 | `skills/wiki-hub/SKILL.md` | 별도 프로젝트 wiki-hub 실행 — 여러 시스템 wiki 통합 열람·검색·버전 이력·되돌리기 (`wiki-hub-serve` 콘솔 명령 호출) |
+| `skills/{modify,impact,scaffold,find,flow,sql,wiki}/SKILL.md` | 단축 별칭 7종 — `/modify`·`/impact`·`/scaffold`·`/find`·`/flow`·`/sql`·`/wiki` 입력을 각각 safe-modify·analyze-impact·scaffold-feature·find-feature·trace-logic·review-sql·generate-wiki 본편으로 위임한다. 절차를 재정의하지 않는 얇은 위임층 |
 | `agents/spec-clarifier.md` | Phase -1: 소크라테스 인터뷰 + 모호성 점수화 + 명세 리포트 생성 |
 | `agents/harness-evaluator.md` | Phase 4: 4차원 품질 평가 (커버리지·정확도·실행가능성·컨텍스트) + fix_targets 반환 |
 | `agents/analyzer.md` | Phase 2-1: 심층 분석 (스택 + 의존성 그래프 + 데이터 흐름 + 트랜잭션 + 외부 통신 + 인덱스 생성) |
@@ -181,6 +182,9 @@ config / template / requirements 파일은 헤더 생략.
 | 프론트엔드 서비스 스텁만 생성 | `api-bridge` 직접 호출 |
 | 생성된 wiki를 중앙 허브(wiki-hub)에 발행 | `publish-wiki` |
 | 여러 시스템 wiki 통합 열람·검색·버전관리 | `wiki-hub` |
+
+자주 쓰는 7종은 슬래시 단축 별칭으로도 호출한다 — `/modify`·`/impact`·`/scaffold`·`/find`·`/flow`·`/sql`·`/wiki`.
+`trace-logic`의 별칭이 `/trace`가 아니라 `/flow`인 이유는 하네스가 대상 프로젝트마다 로컬 `trace` 스킬을 배포하기 때문이다(이름 충돌 방지).
 
 ## 에이전트 수정
 

@@ -8,7 +8,7 @@ model: sonnet
 
 writer가 생성한 하네스 파일들의 **주장(claim)**이 실제 프로젝트 코드 + 인덱스와 일치하는지 교차 비교한다.
 
-핵심 원칙 (Malburi/harness-ito QA 가이드 + harness-fin 추가):
+핵심 원칙 (Malburi/harness-ito QA 가이드 + AX Navi 추가):
 
 1. **존재 확인이 아니라 경계면 교차 비교** — 양쪽이 일치하는가
 2. **양쪽을 동시에 읽는다** — 생산자/소비자 코드를 함께 분석

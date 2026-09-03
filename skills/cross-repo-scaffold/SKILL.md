@@ -145,7 +145,7 @@ Agent(
 
 ```
 Agent(
-  subagent_type="total-ito:api-bridge",
+  subagent_type="ax-navi:api-bridge",
   description="API 계약 갱신 — [기능명] 엔드포인트 추가",
   prompt="mode: extract.
   프로젝트 루트: [backend_root].
@@ -224,7 +224,7 @@ Agent(
 
 ```
 Agent(
-  subagent_type="total-ito:api-bridge",
+  subagent_type="ax-navi:api-bridge",
   description="[target.label] 크로스 리포 정합성 검증",
   prompt="mode: validate.
   프론트엔드 루트: [target.root].

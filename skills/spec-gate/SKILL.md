@@ -48,7 +48,7 @@ Ouroboros Socratic Interview 엔진에서 영감.
 
 ```
 Agent(
-  subagent_type="total-ito:spec-clarifier",
+  subagent_type="ax-navi:spec-clarifier",
   description="명세 명확화 질문 생성",
   prompt="<mode: question.
   프로젝트 루트: [절대경로].
@@ -69,7 +69,7 @@ Agent(
 
 ```
 Agent(
-  subagent_type="total-ito:spec-clarifier",
+  subagent_type="ax-navi:spec-clarifier",
   description="응답 점수화 + 명세 리포트 작성",
   prompt="<mode: score.
   원본 질문: [Step 1에서 생성된 질문 목록].
