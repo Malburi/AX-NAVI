@@ -245,6 +245,9 @@
     // 그래프(고급, currentModule===null)에서는 제한 없이 전부 펼친다(예전 동작 그대로).
     function inScope(nid) {
       if (currentModule === null) return true;
+      // 타입 기반 가상 모듈(DB 테이블/외부 시스템/생성 코드/외부 라이브러리)은 내부 호출
+      // 관계가 원래 없으므로 스코프 제한을 풀지 않으면 클릭해도 계속 빈 화면만 나온다.
+      if (PSEUDO_MODULE_KEYS.has(currentModule)) return true;
       const n = nodeById.get(nid);
       return !!n && n.module === currentModule;
     }
@@ -298,6 +301,13 @@
     const MODULE_NODES = {{MODULE_NODES}};
     const MODULE_EDGES = {{MODULE_EDGES}};
     const moduleById = new Map(MODULE_NODES.map(m => [m.id, m]));
+
+    // 코드 폴더가 아니라 "타입"으로 묶인 가상 모듈(wiki_generator.py module_candidate()의
+    // 확정 반환값과 정확히 일치해야 한다) — 테이블끼리, 외부 시스템끼리, 생성 코드끼리는
+    // 서로를 호출하지 않으므로 내부 호출 관계가 원래 없다. 이런 모듈은 드릴다운해도
+    // "내부만 보기" 제한을 풀어서 실제로 의미 있는 정보(예: 이 테이블을 누가 쓰는지)인
+    // 크로스 모듈 관계를 볼 수 있게 한다.
+    const PSEUDO_MODULE_KEYS = new Set(["🗄 DB 테이블", "🔶 외부 시스템", "⚙️ 생성 코드", "📦 외부 라이브러리"]);
 
     function mkModuleNode(m) {
       return {
@@ -364,7 +374,11 @@
       physicsOn = false;
       network.setOptions({ physics: { enabled: false } });
       syncPhysicsBtn();
-      network.fit();
+      // 다른 모듈과 실제로 연결된(cross-module edge가 있는) 모듈만 기준으로 확대한다.
+      // 고립 모듈은 화면 밖으로 안 나가게 원형으로 배치되지만 반지름이 크므로, 전체
+      // 노드 기준으로 fit()하면 정작 중요한 연결된 군집이 작게 찌그러져 보였다.
+      const connectedModuleIds = MODULE_NODES.filter(m => m.connected).map(m => 'module:' + m.id);
+      network.fit(connectedModuleIds.length ? { nodes: connectedModuleIds } : undefined);
       updateChromeForView();
       const dc = document.getElementById('detailContent');
       dc.classList.add('empty');
@@ -385,14 +399,20 @@
         seedIds = new Set(nodesData.filter(n => n.initial).map(n => n.id));
       } else {
         const memberSet = new Set(moduleMemberIds(moduleKey));
+        const isPseudo = PSEUDO_MODULE_KEYS.has(moduleKey);
         const DETAIL_HUB_CAP = 250;
         if (memberSet.size <= DETAIL_HUB_CAP) {
           seedIds = memberSet;
         } else {
+          // 타입 기반 가상 모듈(DB 테이블 등)은 내부 호출이 원래 없어 in-module in-degree가
+          // 전부 0으로 나온다 — 순위를 매길 수 없으니 대신 전체 그래프 기준 degree(다른
+          // 모듈에서 오는 실제 호출 포함)로 "많이 쓰이는 것부터" 상위를 고른다. 일반
+          // 모듈은 내부 엣지가 압도적으로 많으므로 이 기준으로 바꿔도 결과가 거의 같다.
           const inDeg = {};
           memberSet.forEach(id => {
             (edgesByNode.get(id) || []).forEach(e => {
-              if (e.to === id && memberSet.has(e.from)) inDeg[id] = (inDeg[id] || 0) + 1;
+              if (e.to !== id) return;
+              if (isPseudo || memberSet.has(e.from)) inDeg[id] = (inDeg[id] || 0) + 1;
             });
           });
           const ranked = [...memberSet].sort((a, b) => (inDeg[b] || 0) - (inDeg[a] || 0) || (a < b ? -1 : 1));
@@ -402,7 +422,9 @@
           hubs.forEach(h => {
             (edgesByNode.get(h) || []).forEach(e => {
               const other = e.from === h ? e.to : e.from;
-              if (memberSet.has(other)) seedIds.add(other);
+              // 가상 모듈은 다른 모듈에 속한 실제 호출자/피호출자도 함께 보여줘야
+              // "관계"가 뭔가 나온다 — 같은 모듈로 제한하지 않는다.
+              if (isPseudo || memberSet.has(other)) seedIds.add(other);
             });
           });
         }

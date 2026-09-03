@@ -1278,6 +1278,7 @@ def main():
 
             module_ids_sorted = sorted(module_node_count.keys())
             module_layout_edges = list(module_edge_agg.keys())
+            module_with_cross_edge = {m for pair in module_edge_agg for m in pair}
             # 모듈 그래프는 보통 수십 개 수준이라 전량 FR로 계산해도 충분히 빠르다. 모듈 간
             # 실제 호출(cross-module edge) 없이 고립된 모듈은 compute_layout()이 자동으로
             # 중앙 군집 바깥 원형으로 배치한다(대부분의 호출은 모듈 "내부"에서 끝나 모듈
@@ -1288,7 +1289,10 @@ def main():
             module_nodes_js = []
             for m in module_ids_sorted:
                 x, y = module_positions.get(m, (0.0, 0.0))
-                module_nodes_js.append(json.dumps({"id": m, "label": m, "count": module_node_count[m], "x": x, "y": y}))
+                module_nodes_js.append(json.dumps({
+                    "id": m, "label": m, "count": module_node_count[m], "x": x, "y": y,
+                    "connected": m in module_with_cross_edge
+                }))
             module_edges_js = [
                 json.dumps({"from": fm, "to": tm, "count": cnt})
                 for (fm, tm), cnt in sorted(module_edge_agg.items())
