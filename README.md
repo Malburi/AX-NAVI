@@ -7,9 +7,6 @@
 
 <!-- 이름: ax = AI Transformation, navi = navigator. 낯선 코드베이스의 지도를 만들고 길을 안내한다는 뜻입니다. -->
 
-> ⚠️ **이름이 바뀌었습니다** — `total-ito` → **`ax-navi`** (v0.32.0부터).
-> 저장소도 `Malburi/AX-NAVI`로 옮겼습니다. 기존 사용자는 [설치 방법](#-설치-방법)의 이름 변경 안내를 참고하세요.
-
 ---
 
 ## 🧬 설계 철학
@@ -72,8 +69,6 @@ Claude Code 어느 프로젝트에서나 실행합니다.
 /plugin marketplace add Malburi/AX-NAVI
 ```
 
-> 저장소도 `Malburi/total-ito-v2`에서 `Malburi/AX-NAVI`로 옮겼습니다. 옛 주소로 등록해 둔 마켓플레이스는 갱신이 멈추므로 위 명령으로 다시 등록하세요.
-
 ### 2단계 — 플러그인 설치
 
 ```
@@ -114,21 +109,6 @@ Claude Code 어느 프로젝트에서나 실행합니다.
 claude plugin marketplace add Malburi/AX-NAVI
 claude plugin install ax-navi@ax-navi --scope user
 claude plugin details ax-navi@ax-navi
-```
-
-### 기존 `total-ito` 사용자
-
-마켓플레이스 카탈로그에 이름 승계 정보(`renames`)가 들어 있어 마켓플레이스를 갱신하면 대부분 자동으로 이어집니다.
-
-```
-/plugin marketplace update ax-navi
-```
-
-자동 승계가 되지 않으면 지우고 다시 설치하면 됩니다. 대상 프로젝트에 이미 생성된 `CLAUDE.md`·`.claude/`·`_workspace/`는 영향을 받지 않습니다.
-
-```
-/plugin uninstall total-ito@total-ito
-/plugin install ax-navi@ax-navi
 ```
 
 > 💡 **설치가 안 될 때** — 저장소 루트에서 `claude plugin validate . --strict`를 실행하고 Claude Code를 최신 버전으로 갱신하세요.
@@ -555,8 +535,6 @@ ax-navi-guide.html        ← 세미나·보고용 슬라이드 (PPT 대체)
 skill-guide.html          ← 스킬 사용 가이드
 skill-triggers.html       ← 스킬 트리거 체계 상세
 ```
-
-> `total-ito-guide_v1.1.html`·`_v1.2.html`은 이전 판 보관본이라 당시 표기를 그대로 둡니다.
 
 ---
 
