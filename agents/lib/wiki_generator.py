@@ -136,6 +136,29 @@ def prefix_graph(graph, prefix):
     return {"nodes": nodes, "edges": edges}
 
 
+def classify_trigger(nid):
+    """raw type이 trigger인 노드를 id 프래그먼트 모양으로 세분한다.
+
+    결정론적 인덱서는 "진입점 같은 것" 전부를 type="trigger" 하나로 낸다 — jsp의 onclick
+    배선, struts <action> 매핑, forward 대상, main/스케줄러 진입점이 모두 섞여 있다.
+    wiki_generator는 지금까지 이걸 통째로 visual "endpoint"(파란색 "⚡ API 엔드포인트")로
+    칠해왔는데, 실측(xu43-server) 2,209개 trigger 중 실제 struts action은 346개뿐이고
+    1,839개가 jsp의 onclick 핸들러였다 — 즉 화면에서 "API 엔드포인트"라고 표시되던 파란
+    노드의 83%가 엔드포인트가 아니었다. 이것이 "apiendpoint가 없다"는 사용자 지적의 직접
+    원인이다.
+
+    HPS(WinForms)의 trigger 1,094개는 id에 '#' 프래그먼트가 없어 기본값 ui_event로
+    떨어진다 — 디자이너의 컨트롤 이벤트 배선이므로 정확한 분류다.
+    """
+    if "#action." in nid:
+        return "endpoint"       # struts <action> 매핑 = 진짜 HTTP 진입점
+    if "#process-entry" in nid:
+        return "entrypoint"     # main()/스케줄러/배치
+    if "#forward." in nid:
+        return "view"           # struts forward 대상 = 화면 전이
+    return "ui_event"           # jsp onclick / WinForms 이벤트 배선
+
+
 def extract_path_and_method(text_fields):
     """노드의 id/label/note/file 텍스트에서 HTTP 메서드·경로 후보를 뽑는다. 못 찾으면 (None, None)."""
     combined = " ".join([t for t in text_fields if t])
@@ -470,6 +493,234 @@ def merge_db_tables_into_graph(raw_graph, schema_json, sql_usage_json):
     return {"nodes": nodes, "edges": edges}, {"table_nodes": len(table_node_ids), "query_edges": len(seen_edges)}
 
 
+_ENDPOINT_PATH_MAX = 34
+
+
+def _endpoint_label(endpoint):
+    """엔드포인트 노드에 붙일 짧은 라벨.
+
+    method가 ANY/빈값이면 붙이지 않는다 — struts·aspnet-webforms는 method를 전부 "ANY"로
+    내므로(실측 server 421/421, HPS 3/3) "ANY /back/..."은 화면 폭만 먹고 정보가 0이다.
+
+    긴 경로는 앞을 잘라낸다. aspnet-webforms/classic-asp는 path가 곧 파일 경로라
+    "/Service Project/HPS.hpsportal.Service/DownloadFile.aspx"처럼 50자를 넘는 경우가 있고,
+    이 라벨은 short_label()을 우회하므로(node["label"]이 이미 채워지면 그쪽이 호출되지
+    않는다) 여기서 직접 줄여야 한다."""
+    method = (endpoint.get("method") or "").upper()
+    path = endpoint.get("path") or endpoint.get("path_pattern") or endpoint.get("id") or "?"
+    if len(path) > _ENDPOINT_PATH_MAX:
+        segs = [s for s in path.split("/") if s]
+        if len(segs) > 2:
+            path = ".../" + "/".join(segs[-2:])
+    return path if method in ("", "ANY", "*") else f"{method} {path}"
+
+
+def _endpoint_note(endpoint):
+    """AI가 쓴 description(실측 421/421 채워짐) + 인증/권한/프레임워크를 한 덩어리로.
+
+    call_graph.json의 노드 note는 결정론 인덱서가 채우지 않는다 — 실측 #action. 트리거
+    346개 중 note 보유 0개라 덮어쓸 위험이 없다. 그래도 기존 note가 있으면 호출부에서
+    뒤에 이어붙인다(방어적)."""
+    parts = []
+    desc = (endpoint.get("description") or "").strip()
+    if desc:
+        parts.append(desc)
+    flags = []
+    if endpoint.get("auth_required"):
+        flags.append("인증 필요")
+    roles = endpoint.get("roles") or []
+    if roles:
+        flags.append("권한: " + ", ".join(str(r) for r in roles))
+    if endpoint.get("framework"):
+        flags.append(str(endpoint["framework"]))
+    if flags:
+        parts.append("(" + " · ".join(flags) + ")")
+    return " ".join(parts)
+
+
+def resolve_endpoint_node(endpoint, ids, by_file, by_file_line, nodes):
+    """엔드포인트 하나를 기존 call_graph 노드에 붙인다. 실측 히트율 순서대로 내려가는
+    결정론적 사다리 — LLM 미개입. 반환: (node_id 또는 None, 사다리 단계 이름).
+
+    L1이 87%를 먹는 이유: 결정론 인덱서는 struts <action> 매핑을
+    "trigger:{xml경로}#action.{서비스빈}" id로 이미 노드화해두고 그 노드에서 서비스
+    클래스로 가는 엣지까지 만들어놨다. api_contract.json의 file + dispatch_bean으로 그 id를
+    문자열 조립하면 정확히 맞는다(실측 368/421). 즉 진짜 API 엔드포인트는 그래프에 이미
+    있었고, 아무도 읽을 수 없는 id로 있었을 뿐이다.
+
+    (file,line) 단계(L4)는 L1 뒤에 두면 실측 추가 히트가 0이다 — L1 집합에 완전히 포함된다.
+    그래도 struts가 아닌 스택(데코레이터/애노테이션 기반)에서는 유일한 단서라 남긴다.
+    """
+    f = (endpoint.get("file") or "").replace("\\", "/")
+    bean = endpoint.get("dispatch_bean")
+    if f and bean:
+        cand = f"trigger:{f}#action.{bean}"
+        if cand in ids:
+            return cand, "L1:trigger#action"
+    if f and f"view:{f}" in ids:            # aspnet-webforms/jsp 계열 (실측 HPS 3/3, client 1/2)
+        return f"view:{f}", "L2:view:file"
+    handler = endpoint.get("handler")
+    if handler and handler in ids:
+        return handler, "L3:handler"
+    same_line = by_file_line.get((f, endpoint.get("line"))) or []
+    if len(same_line) == 1:
+        return same_line[0], "L4:file+line"
+    same_file = by_file.get(f) or []
+    if len(same_file) == 1:
+        return same_file[0], "L5:file-unique"
+    if same_file:
+        # 같은 파일에 노드가 여러 개 — 기존 헬퍼를 그대로 쓴다(데코레이터 바로 아래 함수 우선).
+        picked = (_node_following(nodes, f, endpoint.get("line"))
+                  or _node_enclosing(nodes, f, endpoint.get("line")))
+        if picked:
+            return picked, "L6:file-multi"
+    return None, "L7:orphan"
+
+
+def merge_api_endpoints_into_graph(raw_graph, api_contract_json):
+    """api_contract.json의 endpoints를 call_graph에 반영한다.
+
+    **새 노드를 만드는 게 아니라 기존 노드를 제자리에서 보강하는 것이 기본**이다 —
+    엔드포인트의 87%(struts)는 이미 trigger:...#action.* 노드로 그래프에 있고 서비스
+    클래스로 가는 엣지까지 갖고 있어서, 별도 api: 노드를 만들면 "api → trigger → service"
+    라는 의미 없는 중복 홉이 생긴다. 실측(xu43-server): 383개가 제자리 보강(352개 노드),
+    38개만 신규 노드(전체 노드의 0.36%).
+
+    보강 내용: label(짧은 경로), note(AI가 쓴 한글 description + 인증/권한),
+    api(method+path), endpoint_ids(상세 패널이 data_flow 흐름을 조회할 키).
+    call_graph.json 원본 파일은 건드리지 않는다(merge_db_tables_into_graph와 동일 원칙).
+
+    반환: (병합된 그래프, api_merge_info dict — 07_wiki_build.md 보고용)
+    """
+    endpoints = (api_contract_json or {}).get("endpoints") or []
+    info = {"endpoints": len(endpoints), "enriched": 0, "enriched_nodes": 0,
+            "new_nodes": 0, "new_edges": 0, "ladder": {}}
+    if not endpoints:
+        return raw_graph, info
+
+    nodes = list(raw_graph.get("nodes") or [])
+    edges = list(raw_graph.get("edges") or [])
+    node_by_id, by_file, by_file_line = {}, {}, {}
+    for n in nodes:
+        nid = n.get("id")
+        if nid is not None and nid not in node_by_id:
+            node_by_id[nid] = n
+        f = (n.get("file") or "").replace("\\", "/")
+        by_file.setdefault(f, []).append(nid)
+        by_file_line.setdefault((f, n.get("line")), []).append(nid)
+    ids = set(node_by_id)
+
+    ladder = {}
+    # endpoint id로 정렬 — 같은 노드에 여러 엔드포인트가 붙을 때(실측 17개 노드, 최대 7개)
+    # 어느 것이 label이 되는지가 실행마다 달라지면 publish-wiki가 헛된 버전을 쌓는다.
+    for ep in sorted(endpoints, key=lambda e: str(e.get("id") or "")):
+        target, rung = resolve_endpoint_node(ep, ids, by_file, by_file_line, nodes)
+        ladder[rung] = ladder.get(rung, 0) + 1
+
+        if target is None or rung in ("L6:file-multi", "L7:orphan"):
+            # 신규 노드. 접두사 "api:"는 기존 db_table:/view:/trigger:/partner_ 와 겹치지
+            # 않는다(실측 3개 프로젝트 call_graph.json 어디에도 "api:"로 시작하는 id 없음).
+            aid = f"api:{ep.get('id')}"
+            if aid in ids:
+                continue
+            nodes.append({
+                "id": aid, "label": _endpoint_label(ep), "type": "api_endpoint",
+                "note": _endpoint_note(ep),
+                "file": ep.get("file", ""), "line": ep.get("line", ""),
+                "api": _endpoint_label(ep),
+                "method": ep.get("method", ""), "path": ep.get("path", ""),
+                "endpoint_ids": [ep.get("id")],
+                "endpoint_promoted": True,
+            })
+            ids.add(aid)
+            info["new_nodes"] += 1
+            if target is not None:
+                edges.append({"from": aid, "to": target, "label": "handles",
+                              "type": "serves", "note": rung})
+                info["new_edges"] += 1
+            continue
+
+        node = node_by_id[target]
+        eids = node.setdefault("endpoint_ids", [])
+        if ep.get("id") not in eids:
+            eids.append(ep.get("id"))
+        if len(eids) == 1:
+            node["label"] = _endpoint_label(ep)
+            node["api"] = _endpoint_label(ep)
+            node["method"] = ep.get("method", "")
+            node["path"] = ep.get("path", "")
+            note = _endpoint_note(ep)
+            existing = (node.get("note") or "").strip()
+            node["note"] = f"{note}\n{existing}".strip() if existing else note
+        else:
+            # 하나의 struts action 노드에 여러 엔드포인트가 매핑되는 경우. 첫 라벨을 유지하고
+            # 개수만 덧붙인다 — 라벨을 계속 갈아치우면 어느 게 남는지가 순회 순서에 의존한다.
+            base = str(node.get("label") or "").split("  (+")[0]
+            node["label"] = f"{base}  (+{len(eids) - 1})"
+            node["note"] = (node.get("note") or "") + f"\n— {_endpoint_label(ep)}: {_endpoint_note(ep)}"
+        node["endpoint_promoted"] = True
+        info["enriched"] += 1
+
+    info["enriched_nodes"] = sum(1 for n in nodes if n.get("endpoint_promoted") and not str(n.get("id", "")).startswith("api:"))
+    info["ladder"] = dict(sorted(ladder.items()))
+    print(f"API endpoint merge: endpoints {len(endpoints)}, 제자리 보강 {info['enriched']}건"
+          f"({info['enriched_nodes']}개 노드), 신규 노드 {info['new_nodes']}, "
+          f"신규 엣지 {info['new_edges']}, 사다리 {info['ladder']}")
+    return {"nodes": nodes, "edges": edges}, info
+
+
+def _short_method(fqn):
+    """흐름 목록 표시용 축약 — 상세 패널이 좁아 FQN 전체는 어차피 잘린다. 페이로드 크기도
+    이 축약으로 절반 이하가 된다(실측 906KB → 412KB)."""
+    parts = str(fqn).split(".")
+    return ".".join(parts[-2:]) if len(parts) > 2 else str(fqn)
+
+
+FLOW_METHOD_CAP = 6
+FLOW_TABLE_CAP = 10
+
+
+def build_endpoint_flows(data_flow_json):
+    """data_flow.json의 chains를 endpoint_id -> 상세 패널용 요약으로 만든다.
+
+    이 파일은 지금까지 플러그인의 어떤 파이썬 파일도 열지 않았다(`data_flow` 문자열이
+    lib/*.py 전체에 0건). 실측 330 chains 전부 note를 갖고 있고, endpoint_id 330/330이 실제
+    api_contract 엔드포인트 id이며 method_chain 5,937/5,937이 실제 call_graph 노드 id다 —
+    하네스가 쓴 설명 851개 중 330개가 여기 있는데 그래프에는 하나도 안 나왔다.
+
+    **엣지나 노드를 만들지 않는다.** chains는 이미 그래프에 존재하는 경로의 투영이다 —
+    method_chain의 각 홉은 call 엣지로, sql_ids→tables_*는 merge_db_tables_into_graph의
+    query 엣지로 이미 그려져 있다. 그런데도 endpoint→method 흐름 엣지를 만들면 실측
+    5,937개(전체 엣지 10,311개의 +58%)가 추가되면서 (a) 각 method의 in_degree가 올라가
+    허브 임계값(in_degree 95퍼센타일)이 이동해 "어느 노드가 허브인가"가 조용히 바뀌고,
+    (b) 엔드포인트마다 out-degree 18인 별 모양 뭉치가 330개 생긴다. chains가 실제로 더해주는
+    것은 "순서"와 "요약 note"뿐이고, 그건 그래프 구조가 아니라 상세 패널의 관심사다.
+
+    반환: {endpoint_id: {note, methods[], nm, sqls[], nq, tr[], tw[], conf}}
+    """
+    chains = (data_flow_json or {}).get("chains") or []
+    flows = {}
+    for c in sorted(chains, key=lambda x: str(x.get("endpoint_id") or "")):
+        eid = c.get("endpoint_id")
+        if not eid:
+            continue
+        mc = [m for m in (c.get("method_chain") or []) if m]
+        sq = [s for s in (c.get("sql_ids") or []) if s]
+        flows[eid] = {
+            "note": c.get("note") or "",
+            "methods": [_short_method(m) for m in mc[:FLOW_METHOD_CAP]],
+            "nm": len(mc),
+            "sqls": sq[:FLOW_METHOD_CAP],
+            "nq": len(sq),
+            "tr": sorted(set(c.get("tables_read") or []))[:FLOW_TABLE_CAP],
+            "tw": sorted(set(c.get("tables_written") or []))[:FLOW_TABLE_CAP],
+            "conf": c.get("confidence") or "",
+        }
+    if chains:
+        print(f"Data flow: chains {len(chains)}, 엔드포인트 흐름 {len(flows)}건 (노드·엣지 추가 없음)")
+    return flows
+
+
 # 파일 경로 마지막(파일 바로 위) 세그먼트로 흔히 쓰이는 아키텍처 계층 이름 — 그대로 모듈로
 # 쓰면 서로 무관한 기능들이 전부 이 이름 하나로 뭉쳐버린다(예: eduport/announce/service와
 # eduport/board/service가 둘 다 "service"가 됨). derive_module()의 2순위 규칙에서 걷어낸다.
@@ -542,6 +793,65 @@ def _looks_vendor_library(node):
     return bool(tokens & _VENDOR_LIBRARY_TOKENS)
 
 
+_LABEL_MAX = 40
+
+
+def _clip(s):
+    """라벨 한 줄을 _LABEL_MAX로 자른다. vis-network 노드 상자의 폭은 라벨의 "가장 긴 줄"이
+    결정하므로, 여러 줄 라벨(trigger의 '파일명\\n#이벤트')은 총 길이가 아니라 줄마다 잘라야
+    한다 — 실측 HPS에서 파일명 38자 + 이벤트명 44자로 한 줄이 44자까지 갔다."""
+    s = str(s)
+    return s if len(s) <= _LABEL_MAX else s[: _LABEL_MAX - 1] + "…"
+
+
+def short_label(nid, vis_type, file_path="", method="", path=""):
+    """그래프 캔버스에 그릴 짧은 라벨.
+
+    지금까지 label = node.get("label", node.get("id")) 였고 결정론적 인덱서가 만드는 노드에는
+    label 키가 아예 없어서(실측 3개 프로젝트 전부 0%) 60자짜리 FQN이 그대로 그려졌다 —
+    "eduport.lms.back.main.code.service.TranKoocService.doSublist" 같은 문자열이 상자로
+    렌더되니 fit 줌에서 서로 겹쳐 읽을 수 없었다.
+
+    런타임(mkNode)이 아니라 생성 시점에 계산하는 이유:
+      1) file/vis_type/method/path 컨텍스트가 파이썬 쪽에만 있다,
+      2) 순수 함수라 실행마다 같은 바이트가 나온다(publish-wiki 체크섬 버저닝 제약 충족),
+      3) 25,216개 노드의 라벨 문자열이 짧아져 생성 HTML이 오히려 작아진다.
+
+    전체 id는 노드 id로 그대로 보존되므로 정보 손실이 없다 — 상세 패널과 검색이 id를 그대로
+    쓴다. 한계: 서로 다른 패키지의 동명 클래스는 라벨이 같아진다. 패키지를 되붙여 유일화하는
+    쪽은 일부러 택하지 않았다(다시 길어져 원래 문제로 회귀) — 구분이 필요한 순간엔 상세
+    패널의 전체 id가 답을 준다.
+    """
+    if vis_type == "endpoint" and (method or path):
+        p = path or ""
+        if len(p) > 34:
+            segs = [s for s in p.split("/") if s]
+            if len(segs) > 2:
+                p = ".../" + "/".join(segs[-2:])
+        return p if (method or "").upper() in ("", "ANY", "*") else f"{method} {p}"
+
+    core = (nid or "").split("#dup", 1)[0]
+    if core.startswith("db_table:"):
+        return _clip(core[len("db_table:"):])
+    if core.startswith("trigger:"):
+        head, _, frag = core[len("trigger:"):].partition("#")
+        base = os.path.basename(head.replace("\\", "/")) or head
+        return f"{_clip(base)}\n#{_clip(frag)}" if frag else _clip(base)
+    if vis_type in ("view", "vue_view"):
+        # view 노드는 file이 비어 있을 수 있어(실측 view: 노드는 file이 채워져 있지만
+        # 방어적으로) id의 "view:" 뒤 경로도 후보로 쓴다.
+        src = file_path
+        if not src and core.startswith("view:"):
+            src = core[len("view:"):]
+        base = os.path.basename((src or "").replace("\\", "/"))
+        if base:
+            return _clip(base)
+    parts = core.split(".")
+    if len(parts) >= 2:
+        core = ".".join(parts[-2:])            # Class.method 만 남긴다
+    return _clip(core)
+
+
 def compute_common_path_prefix(nodes):
     """
     전체 노드의 file 경로들이 공유하는 최상위 디렉터리 접두사(세그먼트 리스트)를 동적으로
@@ -609,6 +919,13 @@ def module_candidate(node, vis_type, common_prefix=None):
         return True, "🗄 DB 테이블"
     if vis_type in ("external", "sap_interface"):
         return True, "🔶 외부 시스템"
+    if vis_type == "endpoint":
+        # 엔드포인트는 경로 기반 분류가 무의미하다 — struts는 414개가 전부
+        # WEB-INF/config/actconf/struts-*.xml을 공유해서 "config.actconf"라는 뜻 없는 모듈로
+        # 뭉쳤다. 가상 모듈로 승격하면 "이 시스템의 API 전체"가 찾을 수 있는 하나의 군집이
+        # 되고, 템플릿의 PSEUDO_MODULE_KEYS 스코프 완화가 이미 적용돼 드릴다운 시 다른
+        # 모듈에 있는 핸들러까지 함께 펼쳐진다.
+        return True, "🌐 API 엔드포인트"
     if _looks_generated(node):
         return True, "⚙️ 생성 코드"
     if _looks_vendor_library(node):
@@ -993,16 +1310,44 @@ def main():
     # 11. Generate call-graph.html (100% Python program-side binding, 파트너 그래프 병합 포함)
     merge_info = {"merged": False}
     db_merge_info = {"table_nodes": 0, "query_edges": 0}
+    api_merge_info = {"endpoints": 0, "enriched": 0, "enriched_nodes": 0,
+                      "new_nodes": 0, "new_edges": 0, "ladder": {}}
+    endpoint_flows = {}
     call_graph_path = os.path.join(project_root, "_workspace", "index", "call_graph.json")
     cg_template = read_file(os.path.join(LIB_DIR, "call-graph.template.html"))
     nodes_data, edges_data = [], []
     if cg_template:
         raw_graph = load_json(call_graph_path) or {"nodes": [], "edges": []}
         # 노드 상세 패널의 extends/implements/메서드 목록은 call_graph가 아니라 symbols.json에만 있다.
+        # 파트너 그래프 노드는 prefix_graph()가 "partner_"/"partner{i}_" 접두사를 붙여놓기
+        # 때문에(위 prefix_graph 참조) 자기 symbols.json만 인덱싱하면 파트너 노드는 100%
+        # 미스가 된다 — 실측 xu43-server 병합 그래프에서 파트너 노드 13,966개 전부
+        # extends/implements/methods가 빈 값이었다(병합 그래프 전체 노드의 55%).
+        #
+        # 조회 시점에 접두사를 벗기는 대신 인덱스 시점에 붙이는 이유: 벗기려면 조회 지점이
+        # partner_/partner0_/.../partner9_ 중 무엇인지 알아야 하고, 우연히 "partner_"로
+        # 시작하는 정상 id를 망칠 위험이 있다. 붙이는 쪽이 정확하고 조회 코드는 무수정이다.
+        def _index_symbols(symbols_json, prefix=""):
+            out = {}
+            for s in ((symbols_json or {}).get("symbols") or []):
+                if isinstance(s, dict) and s.get("id"):
+                    out[f"{prefix}{s['id']}"] = s
+            return out
+
         own_symbols_json = load_json(os.path.join(project_root, "_workspace", "index", "symbols.json"))
-        symbol_by_id = {
-            s.get("id"): s for s in ((own_symbols_json or {}).get("symbols") or []) if isinstance(s, dict)
-        }
+        symbol_by_id = _index_symbols(own_symbols_json)
+        if hub_partner_cfgs:
+            for _i, _cfg in enumerate(hub_partner_cfgs):
+                _ws = _cfg.get("partner_workspace")
+                if _ws:
+                    symbol_by_id.update(_index_symbols(
+                        load_json(os.path.join(_ws, "index", "symbols.json")), f"partner{_i}_"))
+        else:
+            _pair_cfg = parse_pair_config(project_root)
+            if _pair_cfg and _pair_cfg.get("partner_workspace"):
+                symbol_by_id.update(_index_symbols(
+                    load_json(os.path.join(_pair_cfg["partner_workspace"], "index", "symbols.json")),
+                    "partner_"))
 
         if hub_partner_cfgs:
             raw_graph, merge_info = merge_hub_partner_call_graphs(project_root, raw_graph, hub_partner_cfgs)
@@ -1010,6 +1355,17 @@ def main():
             raw_graph, merge_info = merge_partner_call_graph(project_root, raw_graph)
 
         raw_graph, db_merge_info = merge_db_tables_into_graph(raw_graph, own_schema_json, own_sql_usage_json)
+
+        # 엔드포인트 병합은 파트너·DB 병합 뒤, degree/허브/레이아웃/모듈 집계보다 앞이어야 한다.
+        # (a) 파트너 병합 뒤라야 partner_ 접두사와 api: 접두사가 충돌할 수 없고,
+        # (b) degree 계산 앞이라야 신규 serves 엣지가 허브 랭킹·초기 표시 집합에 반영되고,
+        # (c) compute_layout·module_candidate가 신규 노드를 함께 배치·분류한다.
+        raw_graph, api_merge_info = merge_api_endpoints_into_graph(raw_graph, own_api_contract_json)
+
+        # 아래는 그래프 위상을 바꾸지 않는 메타데이터 전용이므로 순서 자유 —
+        # degree/레이아웃/모듈 집계에 일절 영향이 없다.
+        endpoint_flows = build_endpoint_flows(
+            load_json(os.path.join(project_root, "_workspace", "index", "data_flow.json")))
 
         detected_types = set()
         nodes_data = []
@@ -1020,6 +1376,13 @@ def main():
             "view":          {"bg": '#7B1A1A', "border": '#E74C3C', "font": '#fff'},
             "vue_view":      {"bg": '#7B1A1A', "border": '#E74C3C', "font": '#fff'},
             "endpoint":      {"bg": '#1a5fa8', "border": '#4A90D9', "font": '#fff'},
+            # classify_trigger()가 trigger에서 분리한 두 타입.
+            # entrypoint는 호박색 — 개수가 적고(실측 server 24개) 중요하다.
+            # ui_event는 탈채도 회청 — 실측 server 1,839개/HPS 1,094개로 압도적으로 많지만
+            # 아키텍처가 아니라 배선이라 시각적으로 물러나야 한다(예전엔 이게 전부 파란
+            # "API 엔드포인트"로 칠해져 화면을 지배했다).
+            "entrypoint":    {"bg": '#5b3a00', "border": '#D98E04', "font": '#fff'},
+            "ui_event":      {"bg": '#3a3f4b', "border": '#8792a8', "font": '#e8ecf3'},
             "function":      {"bg": '#6C3483', "border": '#9B59B6', "font": '#fff'},
             "dao":           {"bg": '#154360', "border": '#2E86C1', "font": '#fff'},
             "external":      {"bg": '#8a5900', "border": '#F5A623', "font": '#fff'},
@@ -1138,21 +1501,25 @@ def main():
                 nid = f"{nid}#dup{seen_node_ids[nid]}:{node.get('file', '')}:{node.get('line', '')}"
             else:
                 seen_node_ids[nid] = 0
-            label = node.get("label", node.get("id"))
             raw_type = node.get("type", "function")
 
             vis_type = "function"
             type_mapping = {
                 "view": ["view", "component", "page", "screen", "jsp", "thymeleaf", "vue", "react"],
-                # trigger = UI 이벤트·스케줄러·main 같은 진입점 노드 (결정론적 인덱서 산출)
-                "endpoint": ["controller", "endpoint", "route", "api", "rest", "trigger"],
+                # endpoint = api_contract.json에서 온 실제 HTTP 엔드포인트 + 컨트롤러 진입 메서드.
+                # raw type "trigger"는 여기서 빼고 아래 classify_trigger()로 세분한다 — 예전엔
+                # trigger가 이 목록에 있어서 jsp onclick 핸들러까지 전부 "API 엔드포인트"로
+                # 칠해졌다(실측 server 2,209개 중 1,839개가 onclick).
+                "endpoint": ["controller", "endpoint", "route", "api", "rest", "api_endpoint"],
                 "dao": ["dao", "repository", "mapper", "store", "jpa"],
                 "external": ["external", "client", "feign", "soap", "sap", "mq", "kafka", "redis"],
                 "db_table": ["db", "table", "mssql", "oracle", "mysql", "postgres", "sqlite"],
                 "util": ["util", "helper", "common", "config", "constant"]
             }
 
-            if raw_type in ["vue_view", "sap_interface", "mssql_table"]:
+            if raw_type == "trigger":
+                vis_type = classify_trigger(nid or "")
+            elif raw_type in ["vue_view", "sap_interface", "mssql_table"]:
                 vis_type = raw_type
             else:
                 for k, v in type_mapping.items():
@@ -1172,7 +1539,20 @@ def main():
                     elif ".service." in haystack or "service" in haystack:
                         vis_type = "function"
 
+            # 엔드포인트로 보강된 노드는 원래 raw type이 무엇이었든 파란 endpoint로 통일한다.
+            # aspnet-webforms/classic-asp 계열은 view: 노드에 붙기 때문에(실측 HPS 3/3,
+            # client 1/2) 이 줄이 없으면 진짜 엔드포인트가 빨간 뷰로 남는다.
+            if node.get("endpoint_promoted"):
+                vis_type = "endpoint"
+
             detected_types.add(vis_type)
+
+            # 라벨은 vis_type이 확정된 뒤에 만든다(엔드포인트/뷰 여부에 따라 규칙이 다름).
+            # 결정론 인덱서 노드에는 label 키가 아예 없으므로(실측 3개 프로젝트 0%) 사실상
+            # 항상 short_label()이 계산한다 — 엔드포인트 병합이 label을 넣어준 노드만 예외.
+            label = node.get("label") or short_label(
+                nid, vis_type, node.get("file", ""), node.get("method", ""), node.get("path", "")
+            )
 
             node_degree = in_degree.get(nid, 0)
             extra = {}
@@ -1222,6 +1602,9 @@ def main():
                 "annotations": node.get("annotations", []),
                 "api": node.get("api", ""),
                 "note": node.get("note", ""),
+                # 상세 패널이 FLOWS(data_flow.json)를 조회할 키. 하나의 struts action 노드에
+                # 여러 엔드포인트가 매핑될 수 있어(실측 최대 7개) 리스트다.
+                "endpointIds": node.get("endpoint_ids", []),
                 "inDegree": node_degree,
                 "outDegree": out_degree.get(nid, 0),
                 "hub": node_degree >= hub_threshold,
@@ -1304,7 +1687,10 @@ def main():
             module_edges_array_str = "[]"
 
         btn_labels = {
+            # endpoint는 이제 api_contract.json에서 온 실제 HTTP 엔드포인트만 가리킨다
+            # (classify_trigger가 onclick 핸들러를 ui_event로 분리했다).
             "view": "🖥 뷰", "vue_view": "🖥 Vue 뷰", "endpoint": "⚡ API 엔드포인트",
+            "ui_event": "🖱 UI 이벤트", "entrypoint": "🚀 진입점(main/배치)",
             "function": "🔧 서비스/함수", "dao": "🗃 DAO/저장소", "external": "🔶 외부 시스템",
             "sap_interface": "🔶 SAP SOAP", "db_table": "🗄 DB 테이블", "mssql_table": "🗄 MSSQL 테이블",
             "util": "⚙ 유틸"
@@ -1323,6 +1709,12 @@ def main():
                 legend_html += f'<div class="legend-item"><div class="legend-dot" style="background:{c["border"]}"></div>{btn_labels.get(t, t)}</div>\n        '
         legend_html += f'<div class="legend-note">◎ 허브(in-degree ≥ {hub_threshold})</div>\n        '
         legend_html += '<div class="legend-note" style="opacity:.55">☠ 데드 코드 후보</div>\n        '
+        # 두 타입이 실제로 나타날 때만 설명을 붙인다 — 범례가 없는 타입을 설명하면 그것도 거짓이다.
+        if "ui_event" in detected_types or "entrypoint" in detected_types:
+            legend_html += (
+                '<div class="legend-note">🖱 UI 이벤트 = 화면 컨트롤·마크업 핸들러 · '
+                '⚡ API 엔드포인트 = api_contract.json의 실제 HTTP 엔드포인트</div>\n        '
+            )
         if any(e["type"] == "reflect" for e in edges_data):
             legend_html += '<div class="legend-note" style="color:#F5A623">┄┄ 리플렉션 엣지(신뢰도 낮음, 검증 권장)</div>\n        '
         if initial_ids is not None:
@@ -1394,6 +1786,8 @@ def main():
             .replace("{{MODULE_NODES}}", module_nodes_array_str)\
             .replace("{{MODULE_EDGES}}", module_edges_array_str)\
             .replace("{{META}}", json.dumps(meta_data, indent=2))\
+            .replace("{{FLOWS}}", json.dumps(
+                endpoint_flows, ensure_ascii=False, sort_keys=True, separators=(",", ":")))\
             .replace("{{PHYSICS_DEFAULT}}", "true" if physics_default else "false")\
             .replace("{{EDGE_SMOOTH_DYNAMIC}}", "true" if edge_smooth_dynamic else "false")
 
@@ -1500,6 +1894,28 @@ def main():
         )
     else:
         report_content += "\nDB 테이블 병합 (call-graph.html): ⏭ 스킵 — schema.json에 테이블 없음/파일 없음\n"
+
+    # 조인 사다리 census를 남기는 이유: 향후 analyzer가 dispatch_bean 같은 필드 이름을 바꾸면
+    # L1이 급감하고 L7(조인 실패)이 튀어오른다 — 조용히 망가지는 대신 이 표에서 드러난다.
+    if api_merge_info.get("endpoints"):
+        report_content += (
+            f"\nAPI 엔드포인트 병합 (call-graph.html): ✅ api_contract.json 엔드포인트 "
+            f"{api_merge_info['endpoints']}개 → 기존 노드 제자리 보강 {api_merge_info['enriched']}건"
+            f"({api_merge_info['enriched_nodes']}개 노드), 신규 노드 {api_merge_info['new_nodes']}개, "
+            f"신규 serves 엣지 {api_merge_info['new_edges']}개\n"
+            f"  조인 사다리: {api_merge_info['ladder']}\n"
+        )
+    else:
+        report_content += "\nAPI 엔드포인트 병합 (call-graph.html): ⏭ 스킵 — api_contract.json에 엔드포인트 없음/파일 없음\n"
+
+    if endpoint_flows:
+        report_content += (
+            f"\n데이터 흐름 (call-graph.html 상세 패널): ✅ data_flow.json 기반 엔드포인트별 흐름 "
+            f"{len(endpoint_flows)}건 (메서드 체인·SQL·읽기/쓰기 테이블 + 서술). 노드·엣지 추가 없음 — "
+            f"흐름은 이미 존재하는 call/query 엣지의 투영이라 엣지로 만들면 허브 임계값이 이동한다\n"
+        )
+    else:
+        report_content += "\n데이터 흐름 (call-graph.html 상세 패널): ⏭ 스킵 — data_flow.json 없음/chains 없음\n"
 
     if partner:
         merged_pages = []
