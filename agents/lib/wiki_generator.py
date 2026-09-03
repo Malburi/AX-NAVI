@@ -518,6 +518,30 @@ def _looks_generated(node):
     return bool(tokens & _GENERATED_CODE_TOKENS)
 
 
+# 프로젝트에 통째로 갖다 놓은 서드파티 JS/UI 라이브러리를 가리키는 토큰. 실측(xu43-client)에서
+# amCharts(유료 차트 라이브러리)가 폴더 두 곳에 중복 벤더링되어 각각 1,048개 파일짜리 모듈로
+# 잡혔다 — 코드 생성기 산출물은 아니라서(코드젠이 아니라 그냥 배포본을 복사해 넣은 것)
+# _looks_generated로는 안 걸린다. 알려진 라이브러리 이름을 나열하는 방식이라 목록에 없는
+# 라이브러리는 여전히 못 잡는다는 한계가 있다 — 그런 사례가 또 나오면 그때 추가한다.
+_VENDOR_LIBRARY_TOKENS = {
+    "vendor", "vendors", "thirdparty", "3rdparty",
+    "ckeditor", "tinymce", "summernote", "wysiwyg",
+    "amcharts", "highcharts", "chartjs", "echarts",
+    "jquery", "bootstrap", "fontawesome", "swiper", "select2", "datatables",
+    "moment", "lodash", "underscore",
+    "sweetalert", "sweetalert2", "popper", "slick", "owlcarousel",
+    "fancybox", "lightbox", "flatpickr", "daterangepicker",
+}
+
+
+def _looks_vendor_library(node):
+    """경로 토큰 중 하나가 _VENDOR_LIBRARY_TOKENS와 완전히 일치하면 서드파티 라이브러리로
+    본다. _looks_generated와 같은 토큰화 방식(부분 문자열 아님)을 쓴다."""
+    path = (node.get("file") or "").lower()
+    tokens = set(re.split(r"[^a-z0-9]+", path))
+    return bool(tokens & _VENDOR_LIBRARY_TOKENS)
+
+
 def compute_common_path_prefix(nodes):
     """
     전체 노드의 file 경로들이 공유하는 최상위 디렉터리 접두사(세그먼트 리스트)를 동적으로
@@ -587,6 +611,8 @@ def module_candidate(node, vis_type, common_prefix=None):
         return True, "🔶 외부 시스템"
     if _looks_generated(node):
         return True, "⚙️ 생성 코드"
+    if _looks_vendor_library(node):
+        return True, "📦 외부 라이브러리"
     nid = node.get("id") or ""
     path = node.get("file") or ""
     if not path and nid.startswith("trigger:"):
@@ -674,6 +700,14 @@ def compute_layout(node_ids, edges, iterations=100, seed=42, target_spacing=120.
     edges: (from_id, to_id) 튜플의 iterable. node_ids 밖의 endpoint를 가진 엣지는 무시.
     반환: id -> (x, y) dict, (0,0) 부근 중심, vis-network 캔버스 단위.
 
+    엣지가 하나도 없는(고립) 노드는 FR 시뮬레이션에서 아예 뺀다 — 반발력만 받아 경계까지
+    밀려나는 문제(vis-network forceAtlas2Based의 centralGravity 같은 인력을 추가해봤지만,
+    담금질(temperature) 스케줄이 후반부에는 이동 폭을 거의 0으로 줄여버려서 초반에 이미
+    경계에 붙은 노드는 그 뒤로 인력을 세게 줘도 되돌아오지 못했다 — 실측: xu43-server
+    48개 모듈 중 28개가 경계(±1247)에 그대로 붙어 있었음). 대신 연결된 노드끼리만 FR을
+    돌려 중앙 군집을 만들고, 고립 노드는 그 군집 바로 바깥에 원형으로 가지런히 배치한다 —
+    물리 시뮬레이션의 우연에 기대지 않는 결정론적 방식이라 항상 화면 안에 들어온다.
+
     결정론 보장:
       - node_ids를 정렬 후 사용한다. 문자열 set/dict의 순회 순서는 프로세스마다 달라질 수
         있어(PYTHONHASHSEED) 정렬 없이는 같은 입력 그래프에도 실행마다 다른 바이트 출력이
@@ -681,66 +715,104 @@ def compute_layout(node_ids, edges, iterations=100, seed=42, target_spacing=120.
         `sorted(..., key=lambda item: (-item[1], item[0]))`과 같은 이유).
       - random.Random(seed)로 지역 인스턴스를 써서 다른 코드의 random 사용과 격리한다.
     """
-    ids = sorted(set(node_ids))
-    n = len(ids)
-    if n == 0:
+    ids_all = sorted(set(node_ids))
+    n_all = len(ids_all)
+    if n_all == 0:
         return {}
+    if n_all == 1:
+        return {ids_all[0]: (0.0, 0.0)}
+
+    id_set = set(ids_all)
+    adj_all = [(f, t) for f, t in edges if f in id_set and t in id_set and f != t]
+    degree = {nid: 0 for nid in ids_all}
+    for f, t in adj_all:
+        degree[f] += 1
+        degree[t] += 1
+    ids = [nid for nid in ids_all if degree[nid] > 0]
+    isolated_ids = [nid for nid in ids_all if degree[nid] == 0]
+    n = len(ids)
+
+    if n == 0:
+        # 전부 고립 — 군집 자체가 없으므로 원점 중심 원형 배치만으로 끝낸다.
+        return _place_in_ring(ids_all, (0.0, 0.0), target_spacing * 2, seed)
     if n == 1:
-        return {ids[0]: (0.0, 0.0)}
+        pos = {ids[0]: (0.0, 0.0)}
+    else:
+        rng = random.Random(seed)
+        k = target_spacing  # call-graph.template.html의 forceAtlas2Based springLength(120)와 맞춤
+        side = k * math.sqrt(n)
+        id_set = set(ids)
+        adj = [(f, t) for f, t in adj_all if f in id_set and t in id_set]
 
-    rng = random.Random(seed)
-    k = target_spacing  # call-graph.template.html의 forceAtlas2Based springLength(120)와 맞춤
-    side = k * math.sqrt(n)
+        pos = {nid: (rng.uniform(-side / 2, side / 2), rng.uniform(-side / 2, side / 2)) for nid in ids}
+        index = {nid: i for i, nid in enumerate(ids)}
+        disp = [[0.0, 0.0] for _ in ids]
+        temperature = side / 10.0
 
-    id_set = set(ids)
-    adj = [(f, t) for f, t in edges if f in id_set and t in id_set and f != t]
+        for _ in range(iterations):
+            for i in range(n):
+                disp[i][0] = 0.0
+                disp[i][1] = 0.0
 
-    pos = {nid: (rng.uniform(-side / 2, side / 2), rng.uniform(-side / 2, side / 2)) for nid in ids}
-    index = {nid: i for i, nid in enumerate(ids)}
-    disp = [[0.0, 0.0] for _ in ids]
-    temperature = side / 10.0
+            for i in range(n):
+                xi, yi = pos[ids[i]]
+                for j in range(i + 1, n):
+                    xj, yj = pos[ids[j]]
+                    dx, dy = xi - xj, yi - yj
+                    dist2 = dx * dx + dy * dy
+                    if dist2 < 1e-4:
+                        dx, dy = rng.uniform(-1, 1), rng.uniform(-1, 1)
+                        dist2 = 1e-4
+                    dist = math.sqrt(dist2)
+                    force = (k * k) / dist
+                    fx, fy = dx / dist * force, dy / dist * force
+                    disp[i][0] += fx; disp[i][1] += fy
+                    disp[j][0] -= fx; disp[j][1] -= fy
 
-    for _ in range(iterations):
-        for i in range(n):
-            disp[i][0] = 0.0
-            disp[i][1] = 0.0
-
-        for i in range(n):
-            xi, yi = pos[ids[i]]
-            for j in range(i + 1, n):
-                xj, yj = pos[ids[j]]
-                dx, dy = xi - xj, yi - yj
-                dist2 = dx * dx + dy * dy
-                if dist2 < 1e-4:
-                    dx, dy = rng.uniform(-1, 1), rng.uniform(-1, 1)
-                    dist2 = 1e-4
-                dist = math.sqrt(dist2)
-                force = (k * k) / dist
+            for f, t in adj:
+                xf, yf = pos[f]; xt, yt = pos[t]
+                dx, dy = xf - xt, yf - yt
+                dist = math.sqrt(dx * dx + dy * dy) or 0.01
+                force = (dist * dist) / k
                 fx, fy = dx / dist * force, dy / dist * force
-                disp[i][0] += fx; disp[i][1] += fy
-                disp[j][0] -= fx; disp[j][1] -= fy
+                i, j = index[f], index[t]
+                disp[i][0] -= fx; disp[i][1] -= fy
+                disp[j][0] += fx; disp[j][1] += fy
 
-        for f, t in adj:
-            xf, yf = pos[f]; xt, yt = pos[t]
-            dx, dy = xf - xt, yf - yt
-            dist = math.sqrt(dx * dx + dy * dy) or 0.01
-            force = (dist * dist) / k
-            fx, fy = dx / dist * force, dy / dist * force
-            i, j = index[f], index[t]
-            disp[i][0] -= fx; disp[i][1] -= fy
-            disp[j][0] += fx; disp[j][1] += fy
+            for i, nid in enumerate(ids):
+                dx, dy = disp[i]
+                dlen = math.sqrt(dx * dx + dy * dy) or 0.01
+                capped = min(dlen, temperature)
+                x, y = pos[nid]
+                x = max(-side, min(side, x + dx / dlen * capped))
+                y = max(-side, min(side, y + dy / dlen * capped))
+                pos[nid] = (x, y)
+            temperature *= 0.95
 
-        for i, nid in enumerate(ids):
-            dx, dy = disp[i]
-            dlen = math.sqrt(dx * dx + dy * dy) or 0.01
-            capped = min(dlen, temperature)
-            x, y = pos[nid]
-            x = max(-side, min(side, x + dx / dlen * capped))
-            y = max(-side, min(side, y + dy / dlen * capped))
-            pos[nid] = (x, y)
-        temperature *= 0.95
+    if isolated_ids:
+        cx = sum(p[0] for p in pos.values()) / len(pos)
+        cy = sum(p[1] for p in pos.values()) / len(pos)
+        max_r = max((math.hypot(x - cx, y - cy) for x, y in pos.values()), default=0.0)
+        ring_pos = _place_in_ring(isolated_ids, (cx, cy), max_r + target_spacing * 2, seed)
+        pos.update(ring_pos)
 
     return {nid: (round(x, 1), round(y, 1)) for nid, (x, y) in pos.items()}
+
+
+def _place_in_ring(ids, center, radius, seed):
+    """ids를 center를 중심으로 반지름 radius인 원 위에 균등 간격으로 배치한다(결정론적).
+    compute_layout()이 고립 노드(연결된 엣지가 하나도 없는 노드)를 물리 시뮬레이션 없이
+    항상 화면 안쪽에, 겹치지 않게 배치하는 데 쓴다."""
+    ids_sorted = sorted(ids)
+    n = len(ids_sorted)
+    cx, cy = center
+    if n == 1:
+        return {ids_sorted[0]: (cx + radius, cy)}
+    return {
+        nid: (round(cx + radius * math.cos(2 * math.pi * i / n), 1),
+              round(cy + radius * math.sin(2 * math.pi * i / n), 1))
+        for i, nid in enumerate(ids_sorted)
+    }
 
 
 def _place_remaining_near_neighbors(remaining_ids, edges, known_positions, seed=42):
@@ -1206,7 +1278,11 @@ def main():
 
             module_ids_sorted = sorted(module_node_count.keys())
             module_layout_edges = list(module_edge_agg.keys())
-            # 모듈 그래프는 보통 수십 개 수준이라 전량 FR로 계산해도 충분히 빠르다.
+            # 모듈 그래프는 보통 수십 개 수준이라 전량 FR로 계산해도 충분히 빠르다. 모듈 간
+            # 실제 호출(cross-module edge) 없이 고립된 모듈은 compute_layout()이 자동으로
+            # 중앙 군집 바깥 원형으로 배치한다(대부분의 호출은 모듈 "내부"에서 끝나 모듈
+            # 개요 엣지에는 안 잡히는 경우가 많아, 실측 xu43-server 48개 모듈 중 상당수가
+            # 이 경우였다).
             module_positions = compute_layout(module_ids_sorted, module_layout_edges, iterations=150, seed=7, target_spacing=180.0)
 
             module_nodes_js = []
